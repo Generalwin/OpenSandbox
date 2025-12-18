@@ -9,9 +9,8 @@ WORKDIR /workspace
 # Set cache env vars to ensuring they are targeted by our volume mounts
 ENV GOCACHE=/go/.cache/go-build
 ENV GOMODCACHE=/go/pkg/mod
-
 # Expose ports
-EXPOSE 8080 2345
+EXPOSE 5758 2345
 
 # The default command will be overridden by the script, but we can set a safe default
 CMD ["bash"]

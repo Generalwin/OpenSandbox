@@ -8,8 +8,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 	gomock "github.com/golang/mock/gomock"
+
+	v1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 )
 
 // MockAllocationStore is a mock of AllocationStore interface.

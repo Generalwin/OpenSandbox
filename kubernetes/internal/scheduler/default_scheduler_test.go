@@ -19,12 +19,14 @@ import (
 	"testing"
 	"time"
 
-	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
-	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
-	"github.com/golang/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/golang/mock/gomock"
+
+	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
+	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 )
 
 func Test_scheduleSingleTaskNode(t *testing.T) {

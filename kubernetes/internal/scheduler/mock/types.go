@@ -7,8 +7,9 @@ package mock_scheduler
 import (
 	reflect "reflect"
 
-	scheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
 	gomock "github.com/golang/mock/gomock"
+
+	scheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
 )
 
 // MockTask is a mock of Task interface.

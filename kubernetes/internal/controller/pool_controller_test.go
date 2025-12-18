@@ -12,22 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
@@ -35,17 +19,19 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/fieldindex"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/fieldindex"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 )
@@ -275,13 +261,20 @@ var _ = Describe("Pool update", func() {
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully update pool revision", func() {
-			pool := &sandboxv1alpha1.Pool{}
-			Expect(k8sClient.Get(ctx, typeNamespacedName, pool)).To(Succeed())
-			oldRevision := pool.Status.Revision
-			pool.Spec.Template.Labels = map[string]string{
-				"test.pool.update": "v1",
-			}
-			Expect(k8sClient.Update(ctx, pool)).To(Succeed())
+			var oldRevision string
+			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				pool := &sandboxv1alpha1.Pool{}
+				if err := k8sClient.Get(ctx, typeNamespacedName, pool); err != nil {
+					return err
+				}
+				if oldRevision == "" {
+					oldRevision = pool.Status.Revision
+				}
+				pool.Spec.Template.Labels = map[string]string{
+					"test.pool.update": "v1",
+				}
+				return k8sClient.Update(ctx, pool)
+			})).Should(Succeed())
 			Eventually(func(g Gomega) {
 				pool := &sandboxv1alpha1.Pool{}
 				Expect(k8sClient.Get(ctx, typeNamespacedName, pool)).To(Succeed())

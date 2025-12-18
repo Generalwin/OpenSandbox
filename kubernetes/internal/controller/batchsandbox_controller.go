@@ -12,22 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
@@ -42,8 +26,10 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -54,6 +40,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
@@ -63,11 +50,6 @@ import (
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/expectations"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/fieldindex"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/requeueduration"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -112,6 +94,23 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		return ctrl.Result{}, err
 	}
+	// handle expire
+	if expireAt := batchSbx.Spec.ExpireTime; expireAt != nil {
+		now := time.Now()
+		if expireAt.Time.Before(now) {
+			if batchSbx.DeletionTimestamp == nil {
+				klog.Infof("batch sandbox %s expired, expire at %v, delete", klog.KObj(batchSbx), expireAt)
+				if err := r.Delete(ctx, batchSbx); err != nil {
+					if errors.IsNotFound(err) {
+						return ctrl.Result{}, nil
+					}
+					return ctrl.Result{}, err
+				}
+			}
+		} else {
+			DurationStore.Push(types.NamespacedName{Namespace: batchSbx.Namespace, Name: batchSbx.Name}.String(), expireAt.Time.Sub(now))
+		}
+	}
 
 	// handle finalizers
 	if batchSbx.DeletionTimestamp == nil {
@@ -120,8 +119,9 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				err := utils.UpdateFinalizer(r.Client, batchSbx, utils.AddFinalizerOpType, FinalizerTaskCleanup)
 				if err != nil {
 					klog.Errorf("failed to add finalizer %s %s, err %v", FinalizerTaskCleanup, klog.KObj(batchSbx), err)
+				} else {
+					klog.Infof("batchsandbox %s add finalizer %s", klog.KObj(batchSbx), FinalizerTaskCleanup)
 				}
-				klog.Infof("task cleanup is finished, add finalizer %s %s, err %v", FinalizerTaskCleanup, klog.KObj(batchSbx), err)
 				return ctrl.Result{}, err
 			}
 		}
@@ -131,11 +131,11 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	var errors []error
+	var aggErrors []error
 
 	pods, err := r.listPods(ctx, batchSbx)
 	if err != nil {
-		errors = append(errors, err)
+		aggErrors = append(aggErrors, err)
 	} else {
 		slices.SortStableFunc[[]*corev1.Pod, *corev1.Pod](pods, utils.PodNameSorter)
 		var err error
@@ -144,7 +144,7 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			err = r.scaleBatchSandbox(ctx, batchSbx, batchSbx.Spec.Template, pods)
 		}
 		if err != nil {
-			errors = append(errors, err)
+			aggErrors = append(aggErrors, err)
 		}
 
 		// TODO merge task status update
@@ -153,26 +153,43 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		newStatus.Replicas = 0
 		newStatus.Allocated = 0
 		newStatus.Ready = 0
+		ipList := []string{}
 		for _, pod := range pods {
 			newStatus.Replicas++
 			if utils.IsAssigned(pod) {
 				newStatus.Allocated++
+				ipList = append(ipList, pod.Status.PodIP)
 			}
 			if pod.Status.Phase == corev1.PodRunning && utils.IsPodReady(pod) {
 				newStatus.Ready++
 			}
 		}
+		raw, _ := json.Marshal(ipList)
+		if batchSbx.Annotations[AnnotationSandboxEndpoints] != string(raw) {
+			patchData, _ := json.Marshal(map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"annotations": map[string]string{
+						AnnotationSandboxEndpoints: string(raw),
+					},
+				},
+			})
+			obj := &sandboxv1alpha1.BatchSandbox{ObjectMeta: metav1.ObjectMeta{Namespace: batchSbx.Namespace, Name: batchSbx.Name}}
+			if err := r.Patch(ctx, obj, client.RawPatch(types.MergePatchType, []byte(patchData))); err != nil {
+				klog.Errorf("failed to patch annotation %s, %s, body %s", AnnotationSandboxEndpoints, klog.KObj(batchSbx), patchData)
+				aggErrors = append(aggErrors, err)
+			}
+		}
 		if !reflect.DeepEqual(newStatus, batchSbx.Status) {
 			klog.Infof("To update BatchSandbox status for %s, replicas=%d allocated=%d ready=%d", klog.KObj(batchSbx), newStatus.Replicas, newStatus.Allocated, newStatus.Ready)
 			if err := r.updateStatus(batchSbx, newStatus); err != nil {
-				errors = append(errors, err)
+				aggErrors = append(aggErrors, err)
 			}
 		}
 	}
 
 	// task schedule
 	if batchSbx.Spec.TaskTemplate != nil {
-		// 因为 tasks 是in memory，没有event机制，因此需要周期性reconcile
+		// Because tasks are in-memory and there is no event mechanism, periodic reconciliation is required.
 		DurationStore.Push(types.NamespacedName{Namespace: batchSbx.Namespace, Name: batchSbx.Name}.String(), 3*time.Second)
 		sch, err := r.getTaskScheduler(batchSbx, pods)
 		if err != nil {
@@ -181,14 +198,16 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if batchSbx.DeletionTimestamp != nil {
 			stoppingTasks := sch.StopTask()
 			if len(stoppingTasks) > 0 {
-				klog.Infof("BatchSandbox %s is stopping tasks %d this round", klog.KObj(batchSbx), len(stoppingTasks))
+				klog.Infof("BatchSandbox %s is stopping %d tasks this round", klog.KObj(batchSbx), len(stoppingTasks))
 			}
 		}
 		now := time.Now()
 		if err = r.scheduleTasks(ctx, sch, batchSbx); err != nil {
-			errors = append(errors, err)
+			klog.Errorf("BatchSandbox %s failed to schedule tasks, err %v", klog.KObj(batchSbx), err)
+			aggErrors = append(aggErrors, err)
+		} else {
+			klog.Infof("BatchSandbox %s schedule tasks cost %d ms", klog.KObj(batchSbx), time.Since(now).Milliseconds())
 		}
-		klog.Infof("BatchSandbox %s schedule tasks cost %d ms, err %v", klog.KObj(batchSbx), time.Since(now).Milliseconds(), err)
 		// check task cleanup is finished
 		if batchSbx.DeletionTimestamp != nil {
 			unfinishedTasks := r.getTasksCleanupUnfinished(batchSbx, sch)
@@ -199,20 +218,23 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				if controllerutil.ContainsFinalizer(batchSbx, FinalizerTaskCleanup) {
 					err = utils.UpdateFinalizer(r.Client, batchSbx, utils.RemoveFinalizerOpType, FinalizerTaskCleanup)
 					if err != nil {
-						if kerrors.IsNotFound(err) {
+						if errors.IsNotFound(err) {
 							err = nil
 						} else {
 							klog.Errorf("failed to remove finalizer %s %s, err %v", FinalizerTaskCleanup, klog.KObj(batchSbx), err)
 						}
 					}
 				}
-				klog.Infof("BatchSandbox %s is terminating, task cleanup is finished, remove finalizer %s %s, err %v", klog.KObj(batchSbx), FinalizerTaskCleanup, klog.KObj(batchSbx), err)
+				if err == nil {
+					r.deleteTaskScheduler(batchSbx)
+					klog.Infof("BatchSandbox %s is terminating, task cleanup is finished, remove finalizer %s %s", klog.KObj(batchSbx), FinalizerTaskCleanup, klog.KObj(batchSbx))
+				}
 				return ctrl.Result{}, err
 			}
 		}
 	}
 
-	return reconcile.Result{RequeueAfter: DurationStore.Pop(req.String())}, gerrors.Join(errors...)
+	return reconcile.Result{RequeueAfter: DurationStore.Pop(req.String())}, gerrors.Join(aggErrors...)
 }
 
 func (r *BatchSandboxReconciler) listPods(ctx context.Context, batchSbx *sandboxv1alpha1.BatchSandbox) ([]*corev1.Pod, error) {
@@ -239,7 +261,7 @@ func (r *BatchSandboxReconciler) listPods(ctx context.Context, batchSbx *sandbox
 			pod := &corev1.Pod{}
 			// TODO maybe performance is problem
 			if err := r.Client.Get(ctx, types.NamespacedName{Namespace: batchSbx.Namespace, Name: name}, pod); err != nil {
-				if kerrors.IsNotFound(err) {
+				if errors.IsNotFound(err) {
 					continue
 				}
 				return nil, err
@@ -275,17 +297,28 @@ func (r *BatchSandboxReconciler) getTaskScheduler(batchSbx *sandboxv1alpha1.Batc
 		if err != nil {
 			return nil, err
 		}
-		tSch, err := taskscheduler.NewTaskScheduler(key, taskSpecs, pods, policy)
+		sc, err := taskscheduler.NewTaskScheduler(key, taskSpecs, pods, policy)
 		if err != nil {
 			return nil, fmt.Errorf("new task scheduler err %w", err)
 		}
-		r.taskSchedulers.Store(key, tSch)
+		klog.Infof("successfully new task scheduler for batch sandbox %s", klog.KObj(batchSbx))
+		tSch = sc
+		r.taskSchedulers.Store(key, sc)
 	} else {
-		tSch = (val.(taskscheduler.TaskScheduler))
+		tSch, ok = (val.(taskscheduler.TaskScheduler))
+		if !ok {
+			return nil, gerrors.New("invalid scheduler type stored")
+		}
 		// Update the pods list for this scheduler
 		tSch.UpdatePods(pods)
 	}
 	return tSch, nil
+}
+
+func (r *BatchSandboxReconciler) deleteTaskScheduler(batchSbx *sandboxv1alpha1.BatchSandbox) {
+	klog.Infof("delete task scheduler for batch sandbox %s", klog.KObj(batchSbx))
+	key := types.NamespacedName{Namespace: batchSbx.Namespace, Name: batchSbx.Name}.String()
+	r.taskSchedulers.Delete(key)
 }
 
 func generaTaskSpec(batchSbx *sandboxv1alpha1.BatchSandbox) ([]*sandboxv1alpha1.Task, error) {
@@ -304,6 +337,12 @@ func getTaskSpec(batchSbx *sandboxv1alpha1.BatchSandbox, idx int) (*sandboxv1alp
 	task := &sandboxv1alpha1.Task{
 		ObjectMeta: batchSbx.Spec.TaskTemplate.ObjectMeta,
 		Spec:       *batchSbx.Spec.TaskTemplate.Spec.DeepCopy(),
+	}
+	if task.Name == "" {
+		task.Name = fmt.Sprintf("%s-%d", batchSbx.Name, idx)
+	}
+	if task.Namespace == "" {
+		task.Namespace = batchSbx.Namespace
 	}
 	if len(batchSbx.Spec.ShardTaskPatches) > 0 && idx < len(batchSbx.Spec.ShardTaskPatches) {
 		patch := batchSbx.Spec.ShardTaskPatches[idx]
@@ -417,7 +456,7 @@ func (r *BatchSandboxReconciler) releasePods(ctx context.Context, batchSbx *sand
 			Name:      batchSbx.Name,
 		},
 	}
-	return r.Client.Patch(ctx, b, client.RawPatch(types.StrategicMergePatchType, []byte(body)))
+	return r.Client.Patch(ctx, b, client.RawPatch(types.MergePatchType, []byte(body)))
 }
 
 // Normal Mode
@@ -456,7 +495,9 @@ func (r *BatchSandboxReconciler) scaleBatchSandbox(ctx context.Context, batchSan
 		if err != nil {
 			return err
 		}
-		ctrl.SetControllerReference(pod, batchSandbox, r.Scheme)
+		if err := ctrl.SetControllerReference(pod, batchSandbox, r.Scheme); err != nil {
+			return err
+		}
 		pod.Labels[LabelBatchSandboxPodIndexKey] = strconv.Itoa(idx)
 		pod.Namespace = batchSandbox.Namespace
 		pod.Name = fmt.Sprintf("%s-%d", batchSandbox.Name, idx)

@@ -55,7 +55,7 @@ docker volume create sandbox-k8s-gocache > /dev/null
 
 docker run --rm -it \
   --privileged \
-  -p 8080:8080 \
+  -p 5758:5758 \
   -p 2345:2345 \
   --security-opt seccomp=unconfined \
   --cap-add=SYS_PTRACE \

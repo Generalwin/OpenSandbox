@@ -1,8 +1,46 @@
-# sandbox-k8s
-// TODO(user): Add simple overview of use/purpose
+# OpenSandbox Kubernetes Controller
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+[English](README.md) | [中文](README-ZH.md)
+
+OpenSandbox Kubernetes Controller is a Kubernetes operator that manages sandbox environments through custom resources. It provides **automated sandbox lifecycle management**, **resource pooling for fast provisioning**, **batch sandbox creation**, and **optional task orchestration** capabilities in Kubernetes clusters.
+
+## Key Features
+
+- **Flexible Sandbox Creation**: Choose between pooled and non-pooled sandbox creation modes
+- **Batch and Individual Delivery**: Support both single sandbox (for real-user interactions) and batch sandbox delivery (for high-throughput agentic-RL scenarios)
+- **Optional Task Scheduling**: Integrated task orchestration with optional shard task templates for heterogeneous task distribution and customized sandbox delivery (e.g., process injection or dynamic container creation)
+- **Resource Pooling**: Maintain pre-warmed resource pools for rapid sandbox provisioning
+- **Comprehensive Monitoring**: Real-time status tracking of sandboxes and tasks
+
+## Features
+
+### Batch Sandbox Management
+The BatchSandbox custom resource allows you to create and manage multiple identical sandbox environments. Key capabilities include:
+- **Flexible Creation Modes**: Support both pooled (using resource pools) and non-pooled sandbox creation
+- **Single and Batch Delivery**: Create single sandboxes (replicas=1) or batches of sandboxes (replicas=N) as needed
+- **Scalable Replica Management**: Easily control the number of sandbox instances through replica configuration
+- **Automatic Expiration**: Set TTL (time-to-live) for automatic cleanup of expired sandboxes
+- **Optional Task Scheduling**: Built-in task execution engine with support for optional task templates
+- **Detailed Status Reporting**: Comprehensive metrics on replicas, allocations, and task states
+
+### Resource Pooling
+The Pool custom resource maintains a pool of pre-warmed compute resources to enable rapid sandbox provisioning:
+- Configurable buffer sizes (minimum and maximum) to balance resource availability and cost
+- Pool capacity limits to control overall resource consumption
+- Automatic resource allocation and deallocation based on demand
+- Real-time status monitoring showing total, allocated, and available resources
+
+### Task Orchestration
+Integrated task management system that executes custom workloads within sandboxes:
+- **Optional Execution**: Task scheduling is completely optional - sandboxes can be created without tasks
+- **Container and Process Tasks**: Support for both container-based and process-based tasks
+- **Heterogeneous Task Distribution**: Customize individual tasks for each sandbox in a batch using shardTaskPatches
+
+### Advanced Scheduling
+Intelligent resource management features:
+- Minimum and maximum buffer settings to ensure resource availability while controlling costs
+- Pool-wide capacity limits to prevent resource exhaustion
+- Automatic scaling based on demand
 
 ## Getting Started
 
@@ -10,126 +48,331 @@
 - go version v1.24.0+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Access to a Kubernetes v1.33.1+ cluster.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+If you don't have access to a Kubernetes cluster, you can use [kind](https://kind.sigs.k8s.io/) to create a local Kubernetes cluster for testing purposes. Kind runs Kubernetes nodes in Docker containers, making it easy to set up a local development environment.
 
+To install kind:
+- Download the release binary for your OS from the [releases page](https://github.com/kubernetes-sigs/kind/releases) and move it into your `$PATH`
+- Or use a package manager:
+  - macOS (Homebrew): `brew install kind`
+  - Windows (winget): `winget install Kubernetes.kind`
+
+After installing kind, create a cluster with:
 ```sh
-make docker-build docker-push IMG=<some-registry>/sandbox-k8s:tag
+kind create cluster
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+This command creates a single-node cluster by default. To interact with it, use `kubectl` with the generated kubeconfig.
 
-**Install the CRDs into the cluster:**
+**Important Note for Kind Users**: If you're using a kind cluster, you need to load the controller and task-executor images into the kind node after building them with `make docker-build`. This is because kind runs Kubernetes nodes in Docker containers and cannot directly access images from your local Docker daemon.
 
+Load the images into the kind cluster with:
 ```sh
-make install
+kind load docker-image <controller-image-name>:<tag>
+kind load docker-image <task-executor-image-name>:<tag>
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
+For example, if you built your images with `make docker-build IMG=my-controller:latest`, you would load them with:
 ```sh
-make deploy IMG=<some-registry>/sandbox-k8s:tag
+kind load docker-image my-controller:latest
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
+Delete the cluster when you're done with:
 ```sh
-kubectl apply -k config/samples/
+kind delete cluster
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+For more detailed instructions on using kind, please refer to the [official kind documentation](https://kind.sigs.k8s.io/docs/user/quick-start/).
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+### Deployment
 
+This project requires two separate images - one for the controller and another for the task-executor component.
+
+1. **Build and push your images:**
+   ```sh
+   # Build and push the controller image
+   make docker-build docker-push IMG=<some-registry>/opensandbox-controller:tag
+   
+   # Build and push the task-executor image
+   make docker-build-task-executor docker-push-task-executor IMG=<some-registry>/opensandbox-task-executor:tag
+   ```
+
+   **NOTE:** These images ought to be published in the personal registry you specified. And it is required to have access to pull the images from the working environment. Make sure you have the proper permission to the registry if the above commands don't work.
+
+2. **Install the CRDs into the cluster:**
+   ```sh
+   make install
+   ```
+
+3. **Deploy the Manager to the cluster:**
+   ```sh
+   make deploy IMG=<some-registry>/opensandbox-controller:tag TASK_EXECUTOR_IMG=<some-registry>/opensandbox-task-executor:tag
+   ```
+
+   **NOTE**: you may need to grant yourself cluster-admin privileges or be logged in as admin to ensure you have cluster-admin privileges before running the commands.
+
+**Important Note for Kind Users**: If you're using a kind cluster, you need to load both images into the kind node after building them:
 ```sh
-kubectl delete -k config/samples/
+kind load docker-image <controller-image-name>:<tag>
+kind load docker-image <task-executor-image-name>:<tag>
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+### Creating BatchSandbox and Pool Resources
 
-```sh
-make uninstall
+#### Basic Example
+Create a simple non-pooled sandbox without task scheduling:
+
+```yaml
+apiVersion: sandbox.opensandbox.io/v1alpha1
+kind: BatchSandbox
+metadata:
+  name: basic-batch-sandbox
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: sandbox-container
+        image: nginx:latest
+        ports:
+        - containerPort: 80
 ```
 
-**UnDeploy the controller from the cluster:**
-
+Apply the batch sandbox configuration:
 ```sh
-make undeploy
+kubectl apply -f basic-batch-sandbox.yaml
 ```
 
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
+Check the status of your batch sandbox:
 ```sh
-make build-installer IMG=<some-registry>/sandbox-k8s:tag
+kubectl get batchsandbox basic-batch-sandbox -o wide
 ```
 
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
+Example output:
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/sandbox-k8s/<tag or branch>/dist/install.yaml
+NAME                   DESIRED   TOTAL   ALLOCATED   READY   EXPIRE   AGE
+basic-batch-sandbox    2         2       2           2       <none>   5m
 ```
 
-### By providing a Helm Chart
+Status field explanations:
+- **DESIRED**: The number of sandboxes requested
+- **TOTAL**: The total number of sandboxes created
+- **ALLOCATED**: The number of sandboxes successfully allocated
+- **READY**: The number of sandboxes ready for use
+- **EXPIRE**: Expiration time (empty if not set)
+- **AGE**: Time since the resource was created
 
-1. Build the chart using the optional helm plugin
-
+After the sandboxes are ready, you can find the endpoint information in the annotations:
 ```sh
-operator-sdk edit --plugins=helm/v1-alpha
+kubectl get batchsandbox basic-batch-sandbox -o jsonpath='{.metadata.annotations.sandbox\.opensandbox\.io/endpoints}'
 ```
 
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
+This will show the IP addresses of the delivered sandboxes.
 
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
+#### Advanced Examples
+
+##### Pooled Sandbox Without Task
+First, create a resource pool:
+
+```yaml
+apiVersion: sandbox.opensandbox.io/v1alpha1
+kind: Pool
+metadata:
+  name: example-pool
+spec:
+  template:
+    spec:
+      containers:
+      - name: sandbox-container
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+  capacitySpec:
+    bufferMax: 10
+    bufferMin: 2
+    poolMax: 20
+    poolMin: 5
+```
+
+Apply the pool configuration:
+```sh
+kubectl apply -f pool-example.yaml
+```
+
+Create a batch of sandboxes using the pool:
+
+```yaml
+apiVersion: sandbox.opensandbox.io/v1alpha1
+kind: BatchSandbox
+metadata:
+  name: pooled-batch-sandbox
+spec:
+  replicas: 3
+  poolRef: example-pool
+  template:
+    spec:
+      containers:
+      - name: sandbox-container
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+```
+
+Apply the batch sandbox configuration:
+```sh
+kubectl apply -f pooled-batch-sandbox.yaml
+```
+
+##### Pooled Sandbox With Heterogeneous Tasks
+Create a batch of sandboxes with process-based heterogeneous tasks. For task execution to work properly, the task-executor must be deployed as a sidecar container in the pool template and share the process namespace with the sandbox container:
+
+First, create a resource pool with the task-executor sidecar:
+
+```yaml
+apiVersion: sandbox.opensandbox.io/v1alpha1
+kind: Pool
+metadata:
+  name: task-example-pool
+spec:
+  template:
+    spec:
+      shareProcessNamespace: true
+      containers:
+      - name: sandbox-container
+        image: ubuntu:latest
+        command: ["sleep", "3600"]
+      - name: task-executor
+        image: <task-executor-image>:<tag>
+        securityContext:
+          capabilities:
+            add: ["SYS_PTRACE"]
+  capacitySpec:
+    bufferMax: 10
+    bufferMin: 2
+    poolMax: 20
+    poolMin: 5
+```
+
+Create a batch of sandboxes with process-based heterogeneous tasks using the pool we just created:
+
+```yaml
+apiVersion: sandbox.opensandbox.io/v1alpha1
+kind: BatchSandbox
+metadata:
+  name: task-batch-sandbox
+spec:
+  replicas: 2
+  poolRef: task-example-pool
+  template:
+    spec:
+      shareProcessNamespace: true
+      containers:
+      - name: sandbox-container
+        image: ubuntu:latest
+        command: ["sleep", "3600"]
+      - name: task-executor
+        image: <task-executor-image>:<tag>
+        securityContext:
+          capabilities:
+            add: ["SYS_PTRACE"]
+  taskTemplate:
+    spec:
+      process:
+        command: ["echo", "Default task"]
+  shardTaskPatches:
+  - spec:
+      process:
+        command: ["echo", "Custom task for sandbox 1"]
+  - spec:
+      process:
+        command: ["echo", "Custom task for sandbox 2"]
+        args: ["with", "additional", "arguments"]
+```
+
+Apply the batch sandbox configuration:
+```sh
+kubectl apply -f task-batch-sandbox.yaml
+```
+
+Check the status of your batch sandbox with tasks:
+```sh
+kubectl get batchsandbox task-batch-sandbox -o wide
+```
+
+Example output:
+```sh
+NAME                   DESIRED   TOTAL   ALLOCATED   READY   TASK_RUNNING   TASK_SUCCEED   TASK_FAILED   TASK_UNKNOWN   EXPIRE   AGE
+task-batch-sandbox     2         2       2           2       0              2              0             0              <none>   5m
+```
+
+Task status field explanations:
+- **TASK_RUNNING**: The number of tasks currently executing
+- **TASK_SUCCEED**: The number of tasks that have completed successfully
+- **TASK_FAILED**: The number of tasks that have failed
+- **TASK_UNKNOWN**: The number of tasks with unknown status
+
+When you delete a BatchSandbox with running tasks, the controller will first stop all tasks before deleting the BatchSandbox resource. Once all tasks are successfully terminated, the BatchSandbox will be completely removed, and the sandboxes will be returned to the pool for reuse.
+
+To delete the BatchSandbox:
+```sh
+kubectl delete batchsandbox task-batch-sandbox
+```
+
+You can monitor the deletion process by watching the BatchSandbox status:
+```sh
+kubectl get batchsandbox task-batch-sandbox -w
+```
+
+### Monitoring Resources
+Check the status of your pools and batch sandboxes:
+
+```sh
+# View pool status
+kubectl get pools
+
+# View batch sandbox status
+kubectl get batchsandboxes
+
+# Get detailed information about a specific resource
+kubectl describe pool example-pool
+kubectl describe batchsandbox example-batch-sandbox
+```
+
+## Project Structure
+
+```
+├── api/
+│   └── v1alpha1/          # Custom resource definitions (BatchSandbox, Pool)
+├── cmd/
+│   ├── controller/         # Main controller manager entry point
+│   └── task-executor/     # Task executor binary
+├── config/
+│   ├── crd/               # Custom resource definitions manifests
+│   ├── default/           # Default configuration for controller deployment
+│   ├── manager/           # Controller manager configuration
+│   ├── rbac/              # Role-based access control manifests
+│   └── samples/           # Sample YAML manifests for resources
+├── hack/                  # Development scripts and tools
+├── images/                # Documentation images
+├── internal/
+│   ├── controller/        # Core controller implementations
+│   ├── scheduler/         # Resource allocation and scheduling logic
+│   ├── task-executor/     # Task execution engine internals
+│   └── utils/             # Utility functions and helpers
+├── pkg/
+│   └── task-executor/     # Shared task executor packages
+└── test/                  # Test suites and utilities
+```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+We welcome contributions to the OpenSandbox Kubernetes Controller project. Please feel free to submit issues, feature requests, and pull requests.
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
+This project is open source under the Apache 2.0 License.
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+You can use OpenSandbox for personal or commercial projects in compliance with the license terms.

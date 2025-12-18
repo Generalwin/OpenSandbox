@@ -169,7 +169,7 @@ func getPodsPrefix(controllerName string) string {
 }
 
 func IsAssigned(pod *v1.Pod) bool {
-	return pod != nil && pod.Spec.NodeName != "" && pod.Status.PodIP != ""
+	return pod != nil && (pod.Spec.NodeName != "" || pod.Status.PodIP != "")
 }
 
 func PodNameSorter(a, b *v1.Pod) int {

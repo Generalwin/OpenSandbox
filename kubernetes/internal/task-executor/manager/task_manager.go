@@ -12,35 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025 Alibaba Group.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/config"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/runtime"
 	store "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/storage"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/types"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -162,6 +148,7 @@ func (m *taskManager) Create(ctx context.Context, task *types.Task) (*types.Task
 
 // Sync synchronizes the current task list with the desired state.
 // It deletes tasks not in the desired list and creates new ones.
+// Returns the current task list and any errors encountered during sync.
 func (m *taskManager) Sync(ctx context.Context, desired []*types.Task) ([]*types.Task, error) {
 	if desired == nil {
 		return nil, fmt.Errorf("desired task list cannot be nil")
@@ -178,11 +165,15 @@ func (m *taskManager) Sync(ctx context.Context, desired []*types.Task) ([]*types
 		}
 	}
 
+	// Collect errors during sync
+	var syncErrors []error
+
 	// Delete tasks not in desired list
 	for name, task := range m.tasks {
 		if _, ok := desiredMap[name]; !ok {
 			if err := m.softDeleteLocked(ctx, task); err != nil {
 				klog.ErrorS(err, "failed to delete task during sync", "name", name)
+				syncErrors = append(syncErrors, fmt.Errorf("failed to delete task %s: %w", name, err))
 			}
 		}
 	}
@@ -192,11 +183,15 @@ func (m *taskManager) Sync(ctx context.Context, desired []*types.Task) ([]*types
 		if _, exists := m.tasks[name]; !exists {
 			if err := m.createTaskLocked(ctx, task); err != nil {
 				klog.ErrorS(err, "failed to create task during sync", "name", name)
+				syncErrors = append(syncErrors, fmt.Errorf("failed to create task %s: %w", name, err))
 			}
 		}
 	}
 
-	// Return current task list
+	// Return current task list with aggregated errors
+	if len(syncErrors) > 0 {
+		return m.listTasksLocked(), errors.Join(syncErrors...)
+	}
 	return m.listTasksLocked(), nil
 }
 

@@ -68,6 +68,10 @@ endif
 # tools. (i.e. podman)
 CONTAINER_TOOL ?= docker
 
+# DOCKER_BUILD_ARGS defines additional arguments to pass to docker build.
+# For example, in some environments you may need: DOCKER_BUILD_ARGS=--network=host
+DOCKER_BUILD_ARGS ?=
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
@@ -115,19 +119,24 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
+# To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
-# CertManager is installed by default; skip with:
-# - CERT_MANAGER_INSTALL_SKIP=true
 KIND_CLUSTER ?= sandbox-k8s-test-e2e
+GINKGO_ARGS ?=
+
+.PHONY: install-kind
+install-kind: ## Install Kind using go install if not already installed
+	@if command -v kind >/dev/null 2>&1; then \
+		echo "Kind is already installed: $$(kind version)"; \
+	else \
+		echo "Installing Kind..."; \
+		go install sigs.k8s.io/kind@v0.20.0 && \
+		echo "Kind installed successfully: $$(kind version)"; \
+	fi
 
 .PHONY: setup-test-e2e
-setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
-	@command -v $(KIND) >/dev/null 2>&1 || { \
-		echo "Kind is not installed. Please install Kind manually."; \
-		exit 1; \
-	}
-	@case "$$($(KIND) get clusters)" in \
+setup-test-e2e: install-kind ## Set up a Kind cluster for e2e tests if it does not exist
+	@case "$$($(KIND) get clusters 2>/dev/null || echo '')" in \
 		*"$(KIND_CLUSTER)"*) \
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
@@ -136,8 +145,8 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	esac
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v
+test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind. Use GINKGO_ARGS to pass additional arguments.
+	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v $(GINKGO_ARGS)
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e
@@ -185,11 +194,11 @@ docker-build: docker-build-controller
 
 .PHONY: docker-build-controller
 docker-build-controller: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build --build-arg PACKAGE=cmd/controller/main.go --build-arg ENTRYPOINT=manager -t ${IMG} .
+	$(CONTAINER_TOOL) build $(DOCKER_BUILD_ARGS) --build-arg PACKAGE=cmd/controller/main.go -t ${IMG} .
 
 .PHONY: docker-build-task-executor
 docker-build-task-executor: ## Build docker image with task-executor.
-	$(CONTAINER_TOOL) build --build-arg PACKAGE=cmd/task-executor/main.go --build-arg ENTRYPOINT=server -t ${TASK_EXECUTOR_IMG} .
+	$(CONTAINER_TOOL) build $(DOCKER_BUILD_ARGS) --build-arg PACKAGE=cmd/task-executor/main.go --build-arg USERID=0 -t ${TASK_EXECUTOR_IMG} .
 
 .PHONY: docker-push
 # docker-push: ## Push docker image with the manager.
@@ -356,7 +365,7 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(CONTAINER_TOOL) build $(DOCKER_BUILD_ARGS) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.

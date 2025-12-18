@@ -17,8 +17,9 @@ package controller
 import (
 	"encoding/json"
 
-	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils"
 )
 
 const (
@@ -30,6 +31,8 @@ const (
 	AnnoPoolAllocGenerationKey = "pool.opensandbox.io/alloc-generation"
 
 	FinalizerTaskCleanup = "batch-sandbox.sandbox.opensandbox.io/task-cleanup"
+
+	AnnotationSandboxEndpoints = "sandbox.opensandbox.io/endpoints"
 )
 
 type SandboxAllocation struct {

@@ -15,8 +15,9 @@
 package scheduler
 
 import (
-	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+
+	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 )
 
 type TaskScheduler interface {

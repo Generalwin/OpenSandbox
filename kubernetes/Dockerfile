@@ -42,7 +42,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o se
 # Use golang image as base to ensure nsenter (util-linux) is available
 # distroless does not contain shell or nsenter
 FROM golang:1.25
-WORKDIR /
+ARG USERID=65532
+WORKDIR /workspace
 COPY --from=builder /workspace/server .
-USER 65532
-ENTRYPOINT ["/server"]
+USER $USERID
+ENTRYPOINT ["/workspace/server"]

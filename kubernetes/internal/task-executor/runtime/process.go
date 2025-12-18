@@ -25,9 +25,11 @@ import (
 	"syscall"
 	"time"
 
+	"k8s.io/klog/v2"
+
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/config"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/types"
-	"k8s.io/klog/v2"
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/utils"
 )
 
 const (
@@ -48,15 +50,14 @@ func NewProcessExecutor(config *config.Config) (Executor, error) {
 	return &processExecutor{rootDir: config.DataDir, config: config}, nil
 }
 
-func (e *processExecutor) getTaskDir(id string) string {
-	return filepath.Join(e.rootDir, id)
-}
-
 func (e *processExecutor) Start(ctx context.Context, task *types.Task) error {
 	if task == nil {
 		return fmt.Errorf("task cannot be nil")
 	}
-	taskDir := e.getTaskDir(task.Name)
+	taskDir, err := utils.SafeJoin(e.rootDir, task.Name)
+	if err != nil {
+		return fmt.Errorf("invalid task name: %w", err)
+	}
 	pidPath := filepath.Join(taskDir, PidFile)
 	exitPath := filepath.Join(taskDir, ExitFile)
 
@@ -120,7 +121,10 @@ func (e *processExecutor) executeCommand(task *types.Task, cmd *exec.Cmd, pidPat
 		return fmt.Errorf("task and cmd cannot be nil")
 	}
 
-	taskDir := e.getTaskDir(task.Name)
+	taskDir, err := utils.SafeJoin(e.rootDir, task.Name)
+	if err != nil {
+		return fmt.Errorf("invalid task name: %w", err)
+	}
 
 	stdoutPath := filepath.Join(taskDir, StdoutFile)
 	stderrPath := filepath.Join(taskDir, StderrFile)
@@ -214,13 +218,16 @@ EXIT_CODE=$?
 
 printf "%%d" $EXIT_CODE > %s
 exit $EXIT_CODE
-`, cmdStr, exitPath)
+`, cmdStr, shellEscapePath(exitPath))
 	klog.InfoS("Generated shim script", "exitPath", exitPath, "script", script)
 	return script
 }
 
 func (e *processExecutor) Inspect(ctx context.Context, task *types.Task) (*types.Status, error) {
-	taskDir := e.getTaskDir(task.Name)
+	taskDir, err := utils.SafeJoin(e.rootDir, task.Name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task name: %w", err)
+	}
 	exitPath := filepath.Join(taskDir, ExitFile)
 	pidPath := filepath.Join(taskDir, PidFile)
 
@@ -284,7 +291,10 @@ func (e *processExecutor) Inspect(ctx context.Context, task *types.Task) (*types
 
 func (e *processExecutor) Stop(ctx context.Context, task *types.Task) error {
 	// Read from pid file (Root PID: nsenter or sh)
-	taskDir := e.getTaskDir(task.Name)
+	taskDir, err := utils.SafeJoin(e.rootDir, task.Name)
+	if err != nil {
+		return fmt.Errorf("invalid task name: %w", err)
+	}
 	pidPath := filepath.Join(taskDir, PidFile)
 	pidData, err := os.ReadFile(pidPath)
 	if err != nil {
@@ -387,11 +397,16 @@ func isProcessRunning(pid int) bool {
 func shellEscape(args []string) string {
 	quoted := make([]string, len(args))
 	for i, s := range args {
-		// Single-quote the string and escape any existing single quotes
-		// e.g.,  foo'bar  ->  'foo'\''bar'
-		quoted[i] = "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+		quoted[i] = shellEscapePath(s)
 	}
 	return strings.Join(quoted, " ")
+}
+
+// shellEscapePath escapes a single string for safe shell execution.
+// It wraps the string in single quotes and escapes any embedded single quotes.
+// e.g., foo'bar -> 'foo'\”bar'
+func shellEscapePath(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 // findPidByEnvVar finds a process by checking for a specific environment variable.

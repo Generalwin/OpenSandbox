@@ -9,4 +9,4 @@ metadata:
 spec:
   poolRef: pool-sample
   replicas: 2
-  expireTime: "2025-12-03T12:55:41Z"
+  expireTime: "2026-12-03T12:55:41Z"

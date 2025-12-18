@@ -17,9 +17,10 @@ package scheduler
 import (
 	"context"
 
-	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+
+	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 )
 
 // recover reconstructs the task scheduler state from existing pods and their endpoints
@@ -47,8 +48,10 @@ func (sch *defaultTaskScheduler) recoverTaskNodesStatus() error {
 	if len(ips) == 0 {
 		return nil
 	}
-	// TODO 在agent开始stop task的时候，此时发生recover，recover完成后，agent stop task已经完成，并返回空task列表，可能导致scheduler无法判断出这个task是没执行还是执行完成了？
-	// 可能会重复做，但能保证at least once。
+	// TODO: When the agent starts stopping a task, if a recovery occurs at this moment,
+	// the recovery may complete after the agent has already finished stopping the task and returned an empty task list.
+	// This could cause the scheduler to be unable to determine whether the task was never executed or has already completed.
+	// It might lead to duplicate execution, but it ensures at-least-once delivery semantics.
 	tasks := sch.taskStatusCollector.Collect(context.Background(), ips)
 	for i := range ips {
 		ip := ips[i]

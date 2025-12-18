@@ -12,22 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025 Alibaba Group.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package manager
 
 import (
@@ -65,6 +49,20 @@ func setupTestManager(t *testing.T) (TaskManager, *config.Config) {
 	}
 
 	return mgr, cfg
+}
+
+func cleanupTask(t *testing.T, mgr TaskManager, name string) {
+	ctx := context.Background()
+	mgr.Delete(ctx, name)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_, err := mgr.Get(ctx, name)
+		if err != nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Logf("Task %s not deleted within timeout during cleanup", name)
 }
 
 func TestNewTaskManager(t *testing.T) {
@@ -194,6 +192,9 @@ func TestTaskManager_Create(t *testing.T) {
 
 func TestTaskManager_CreateDuplicate(t *testing.T) {
 	mgr, _ := setupTestManager(t)
+	mgr.Start(context.Background())
+	defer mgr.Stop()
+
 	ctx := context.Background()
 
 	task := &types.Task{
@@ -210,7 +211,7 @@ func TestTaskManager_CreateDuplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First Create() failed: %v", err)
 	}
-	defer mgr.Delete(ctx, task.Name)
+	defer cleanupTask(t, mgr, task.Name)
 
 	// Second create should fail
 	_, err = mgr.Create(ctx, task)
@@ -221,6 +222,9 @@ func TestTaskManager_CreateDuplicate(t *testing.T) {
 
 func TestTaskManager_CreateMaxConcurrentTasks(t *testing.T) {
 	mgr, _ := setupTestManager(t)
+	mgr.Start(context.Background())
+	defer mgr.Stop()
+
 	ctx := context.Background()
 
 	task1 := &types.Task{
@@ -237,7 +241,7 @@ func TestTaskManager_CreateMaxConcurrentTasks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First Create() failed: %v", err)
 	}
-	defer mgr.Delete(ctx, task1.Name)
+	defer cleanupTask(t, mgr, task1.Name)
 
 	// Try to create second task - should fail due to max concurrent limit
 	task2 := &types.Task{
@@ -252,12 +256,15 @@ func TestTaskManager_CreateMaxConcurrentTasks(t *testing.T) {
 	_, err = mgr.Create(ctx, task2)
 	if err == nil {
 		t.Error("Create() should fail when max concurrent tasks reached")
-		mgr.Delete(ctx, task2.Name)
+		cleanupTask(t, mgr, task2.Name)
 	}
 }
 
 func TestTaskManager_Get(t *testing.T) {
 	mgr, _ := setupTestManager(t)
+	mgr.Start(context.Background())
+	defer mgr.Stop()
+
 	ctx := context.Background()
 
 	task := &types.Task{
@@ -274,7 +281,7 @@ func TestTaskManager_Get(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() failed: %v", err)
 	}
-	defer mgr.Delete(ctx, task.Name)
+	defer cleanupTask(t, mgr, task.Name)
 
 	// Get task
 	got, err := mgr.Get(ctx, task.Name)

@@ -7,9 +7,10 @@ package mock_scheduler
 import (
 	reflect "reflect"
 
-	scheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/core/v1"
+
+	scheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
 )
 
 // MockTaskScheduler is a mock of TaskScheduler interface.

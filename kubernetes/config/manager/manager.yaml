@@ -59,10 +59,11 @@ spec:
           type: RuntimeDefault
       containers:
       - command:
-        - /server
+        - /workspace/server
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
+          - --v=3
         image: controller:latest
         name: manager
         ports: []

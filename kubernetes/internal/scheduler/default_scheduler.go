@@ -14,35 +14,21 @@
 
 package scheduler
 
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 import (
 	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
-	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
-	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
+	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils"
+	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 )
 
 var _ Task = &taskNode{}
@@ -152,7 +138,7 @@ type taskClient interface {
 
 const (
 	defaultTimeout        time.Duration = 3 * time.Second
-	defaultTaskPort                     = "9091"
+	defaultTaskPort                     = "5758"
 	defaultSchConcurrency int           = 10
 )
 
@@ -278,8 +264,8 @@ func (sch *defaultTaskScheduler) collectTaskStatus(taskNodes []*taskNode) {
 	tasks := sch.taskStatusCollector.Collect(context.Background(), ips)
 	for _, tNode := range taskNodes {
 		task, ok := tasks[tNode.IP]
+		tNode.Status = task
 		if ok && task != nil {
-			tNode.Status = task
 			tNode.transTaskState(parseTaskState(&task.Status))
 		}
 	}
@@ -349,6 +335,7 @@ func assignTaskNodes(taskNodes []*taskNode, freePods []*corev1.Pod) []*corev1.Po
 			continue
 		}
 		pod := freePods[0]
+		klog.Infof("assign Pod %s:%s to task node %s", klog.KObj(pod), pod.Status.PodIP, tNode.Name)
 		tNode.IP = pod.Status.PodIP
 		tNode.PodName = pod.Name
 		freePods = freePods[1:]
@@ -397,7 +384,9 @@ func scheduleSingleTaskNode(tNode *taskNode, taskClientCreator func(endpoint str
 		} else {
 			_, err := setTask(taskClientCreator(tNode.IP), nil)
 			if err != nil {
-				klog.Errorf("Failed to notify executor about releasing task %s: %v", klog.KObj(tNode), err)
+				klog.Errorf("Failed to notify executor about releasing task %s, endpoint %s, err %v", klog.KObj(tNode), tNode.IP, err)
+			} else {
+				klog.Infof("Successfully to notify client to release task %s, endpoint %s", klog.KObj(tNode), tNode.IP)
 			}
 		}
 	}
@@ -406,5 +395,8 @@ func scheduleSingleTaskNode(tNode *taskNode, taskClientCreator func(endpoint str
 func setTask(client taskClient, task *api.Task) (*api.Task, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
+	if klog.V(3).Enabled() {
+		klog.Infof("client set task %s", utils.DumpJSON(task))
+	}
 	return client.Set(ctx, task)
 }

@@ -12,22 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025 Alibaba Group.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package runtime
 
 import (
@@ -40,6 +24,8 @@ import (
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/config"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/types"
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/utils"
+	"github.com/stretchr/testify/assert"
 )
 
 func setupTestExecutor(t *testing.T) (Executor, string) {
@@ -76,7 +62,9 @@ func TestProcessExecutor_Lifecycle(t *testing.T) {
 	}
 
 	// Create task directory manually (normally handled by store)
-	taskDir := pExecutor.getTaskDir(task.Name)
+
+	taskDir, err := utils.SafeJoin(pExecutor.rootDir, task.Name)
+	assert.Nil(t, err)
 	os.MkdirAll(taskDir, 0755)
 
 	// 2. Start
@@ -128,7 +116,9 @@ func TestProcessExecutor_ShortLived(t *testing.T) {
 			},
 		},
 	}
-	os.MkdirAll(pExecutor.getTaskDir(task.Name), 0755)
+	taskDir, err := utils.SafeJoin(pExecutor.rootDir, task.Name)
+	assert.Nil(t, err)
+	os.MkdirAll(taskDir, 0755)
 
 	if err := executor.Start(ctx, task); err != nil {
 		t.Fatalf("Start failed: %v", err)
@@ -166,7 +156,9 @@ func TestProcessExecutor_Failure(t *testing.T) {
 			},
 		},
 	}
-	os.MkdirAll(pExecutor.getTaskDir(task.Name), 0755)
+	taskDir, err := utils.SafeJoin(pExecutor.rootDir, task.Name)
+	assert.Nil(t, err)
+	os.MkdirAll(taskDir, 0755)
 
 	if err := executor.Start(ctx, task); err != nil {
 		t.Fatalf("Start failed: %v", err)

@@ -19,11 +19,12 @@ import (
 	"reflect"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestAllocatorSchedule(t *testing.T) {

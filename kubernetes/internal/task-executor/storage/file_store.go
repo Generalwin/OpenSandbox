@@ -12,22 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025 Alibaba Group.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package store
 
 import (
@@ -38,8 +22,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/types"
 	"k8s.io/klog/v2"
+
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/types"
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/task-executor/utils"
 )
 
 type fileStore struct {
@@ -89,7 +75,10 @@ func (s *fileStore) Create(ctx context.Context, task *types.Task) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	taskDir := s.getTaskDir(task.Name)
+	taskDir, err := utils.SafeJoin(s.dataDir, task.Name)
+	if err != nil {
+		return fmt.Errorf("invalid task name: %w", err)
+	}
 
 	if _, err := os.Stat(taskDir); err == nil {
 		return fmt.Errorf("task %s already exists", task.Name)
@@ -121,7 +110,10 @@ func (s *fileStore) Update(ctx context.Context, task *types.Task) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	taskDir := s.getTaskDir(task.Name)
+	taskDir, err := utils.SafeJoin(s.dataDir, task.Name)
+	if err != nil {
+		return fmt.Errorf("invalid task name: %w", err)
+	}
 
 	// Check if task exists
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
@@ -147,7 +139,10 @@ func (s *fileStore) Get(ctx context.Context, name string) (*types.Task, error) {
 	mu.RLock()
 	defer mu.RUnlock()
 
-	taskDir := s.getTaskDir(name)
+	taskDir, err := utils.SafeJoin(s.dataDir, name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task name: %w", err)
+	}
 
 	// Check if task exists
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
@@ -174,7 +169,11 @@ func (s *fileStore) List(ctx context.Context) ([]*types.Task, error) {
 		}
 
 		taskName := entry.Name()
-		taskDir := s.getTaskDir(taskName)
+		taskDir, err := utils.SafeJoin(s.dataDir, taskName)
+		if err != nil {
+			klog.ErrorS(err, "invalid task directory, skipping", "name", taskName)
+			continue
+		}
 
 		// Acquire read lock for this specific task
 		mu := s.getTaskLock(taskName)
@@ -203,7 +202,10 @@ func (s *fileStore) Delete(ctx context.Context, name string) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	taskDir := s.getTaskDir(name)
+	taskDir, err := utils.SafeJoin(s.dataDir, name)
+	if err != nil {
+		return fmt.Errorf("invalid task name: %w", err)
+	}
 
 	// Check if task exists
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
@@ -218,11 +220,6 @@ func (s *fileStore) Delete(ctx context.Context, name string) error {
 
 	klog.InfoS("deleted task", "name", name)
 	return nil
-}
-
-// getTaskDir returns the directory path for a task.
-func (s *fileStore) getTaskDir(name string) string {
-	return filepath.Join(s.dataDir, name)
 }
 
 // getTaskFilePath returns the file path for a task's JSON file.

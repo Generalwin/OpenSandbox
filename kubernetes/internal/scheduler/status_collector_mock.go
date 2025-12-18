@@ -8,8 +8,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 	gomock "github.com/golang/mock/gomock"
+
+	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 )
 
 // MocktaskStatusCollector is a mock of taskStatusCollector interface.

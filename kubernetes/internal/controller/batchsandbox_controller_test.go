@@ -12,40 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
 	"context"
+	"encoding/json"
 	gerrors "errors"
 	"fmt"
+	"net"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
-	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
-	taskscheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
-	mock_scheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler/mock"
-	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/fieldindex"
-	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -57,10 +36,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
+	taskscheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
+	mock_scheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler/mock"
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/fieldindex"
 )
 
 func init() {
@@ -122,18 +112,49 @@ var _ = Describe("BatchSandbox Controller", func() {
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if !errors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
+			} else {
+				return
 			}
 			By(fmt.Sprintf("Cleanup the specific resource instance BatchSandbox %s", typeNamespacedName))
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
-		It("should successfully update batch sandbox status", func() {
+		It("should successfully create pod, update batch sandbox status, endpoints info", func() {
+			wantIPSet := make(set.Set[string])
 			Eventually(func(g Gomega) {
 				bs := &sandboxv1alpha1.BatchSandbox{}
 				if err := k8sClient.Get(ctx, typeNamespacedName, bs); err != nil {
 					return
 				}
+				allPods := &corev1.PodList{}
+				g.Expect(k8sClient.List(ctx, allPods, &client.ListOptions{Namespace: bs.Namespace})).Should(Succeed())
+				pods := []*corev1.Pod{}
+				for i := range allPods.Items {
+					po := &allPods.Items[i]
+					if metav1.IsControlledBy(po, bs) {
+						pods = append(pods, po)
+						if po.Status.PodIP != "" {
+							continue
+						}
+						// patch status to make pod Scheduled
+						mockIP := randomIPv4().String()
+						wantIPSet.Insert(mockIP)
+						po.Status.PodIP = mockIP
+						po.Status.Phase = corev1.PodRunning
+						po.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}
+						Expect(k8sClient.Status().Update(context.Background(), po)).To(Succeed())
+					}
+				}
+				g.Expect(len(pods)).To(Equal(int(*bs.Spec.Replicas)))
 				g.Expect(bs.Status.ObservedGeneration).To(Equal(bs.Generation))
 				g.Expect(bs.Status.Replicas).To(Equal(*bs.Spec.Replicas))
+				g.Expect(bs.Status.Allocated).To(Equal(*bs.Spec.Replicas))
+				g.Expect(bs.Status.Ready).To(Equal(*bs.Spec.Replicas))
+
+				gotIPs := []string{}
+				if raw := bs.Annotations[AnnotationSandboxEndpoints]; raw != "" {
+					json.Unmarshal([]byte(raw), &gotIPs)
+				}
+				g.Expect(wantIPSet.Equal(set.New(gotIPs...))).To(BeTrue(), fmt.Sprintf("wantIPSet %v, gotIPs %v", wantIPSet.SortedList(), gotIPs))
 			}, timeout, interval).Should(Succeed())
 		})
 		It("should successfully correctly create new Pod and update batch sandbox status when user scale out", func() {
@@ -190,6 +211,33 @@ var _ = Describe("BatchSandbox Controller", func() {
 				g.Expect(newPod.CreationTimestamp).NotTo(Equal(oldPod.CreationTimestamp))
 			}, timeout, interval).Should(Succeed())
 		})
+		It("should delete batch sandbox and related Pods for expired batch sandbox", func() {
+			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				bs := &sandboxv1alpha1.BatchSandbox{}
+				if err := k8sClient.Get(ctx, typeNamespacedName, bs); err != nil {
+					return err
+				}
+				bs.Spec.ExpireTime = &metav1.Time{Time: time.Now().Add(3 * time.Second)}
+				return k8sClient.Update(ctx, bs)
+			})).Should(Succeed())
+
+			Eventually(
+				func(g Gomega) {
+					bs := &sandboxv1alpha1.BatchSandbox{}
+					g.Expect(errors.IsNotFound(k8sClient.Get(ctx, typeNamespacedName, bs))).To(BeTrue())
+					allPods := &corev1.PodList{}
+					g.Expect(k8sClient.List(ctx, allPods, &client.ListOptions{Namespace: bs.Namespace})).Should(Succeed())
+					pods := []*corev1.Pod{}
+					for i := range allPods.Items {
+						po := &allPods.Items[i]
+						if metav1.IsControlledBy(po, bs) {
+							pods = append(pods, po)
+						}
+					}
+					g.Expect(len(pods)).To(BeZero())
+				},
+				timeout, interval).Should(Succeed())
+		})
 	})
 
 	// Pooling Mode
@@ -233,7 +281,7 @@ var _ = Describe("BatchSandbox Controller", func() {
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 
-		It("should successfully update batch sandbox status when get pod from pool alloc", func() {
+		It("should successfully update batch sandbox status, sbx endpoints info when get pod from pool alloc", func() {
 			// mock pool allocation
 			mockPods := []string{}
 			for i := range replicas {
@@ -256,10 +304,14 @@ var _ = Describe("BatchSandbox Controller", func() {
 				po.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}
 				Expect(k8sClient.Status().Update(context.Background(), po)).To(Succeed())
 			}
-			bs := &sandboxv1alpha1.BatchSandbox{}
-			Expect(k8sClient.Get(ctx, typeNamespacedName, bs)).To(Succeed())
-			setSandboxAllocation(bs, SandboxAllocation{Pods: mockPods})
-			Expect(k8sClient.Update(ctx, bs)).To(Succeed())
+			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				bs := &sandboxv1alpha1.BatchSandbox{}
+				if err := k8sClient.Get(ctx, typeNamespacedName, bs); err != nil {
+					return err
+				}
+				setSandboxAllocation(bs, SandboxAllocation{Pods: mockPods})
+				return k8sClient.Update(ctx, bs)
+			})).Should(Succeed())
 			By(fmt.Sprintf("Mock pool allocate Pod %v for BatchSandbox %s", mockPods, typeNamespacedName))
 
 			Eventually(func(g Gomega) {
@@ -271,10 +323,21 @@ var _ = Describe("BatchSandbox Controller", func() {
 				g.Expect(bs.Status.Replicas).To(Equal(*bs.Spec.Replicas))
 				g.Expect(bs.Status.Allocated).To(Equal(*bs.Spec.Replicas))
 				g.Expect(bs.Status.Ready).To(Equal(*bs.Spec.Replicas))
+
+				g.Expect(bs.Annotations[AnnotationSandboxEndpoints]).To(Equal("[\"1.2.3.4\"]"))
 			}, timeout, interval).Should(Succeed())
 		})
 	})
 })
+
+func randomIPv4() net.IP {
+	rand.Seed(time.Now().UnixNano())
+	ip := make(net.IP, 4)
+	for i := range ip {
+		ip[i] = byte(rand.Intn(256))
+	}
+	return ip
+}
 
 var _ = Describe("BatchSandbox Task Scheduler", func() {
 	var (

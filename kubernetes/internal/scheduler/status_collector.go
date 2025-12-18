@@ -18,8 +18,10 @@ import (
 	"context"
 	"sync"
 
-	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 	"k8s.io/klog/v2"
+
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils"
+	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 )
 
 type taskClientCreator func(ip string) taskClient
@@ -41,6 +43,7 @@ type defaultTaskStatusCollector struct {
 func (s *defaultTaskStatusCollector) Collect(ctx context.Context, ipList []string) map[string]*api.Task {
 	semaphore := make(chan struct{}, len(ipList))
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	ret := make(map[string]*api.Task, len(ipList))
 	for idx := range ipList {
 		ip := ipList[idx]
@@ -58,10 +61,13 @@ func (s *defaultTaskStatusCollector) Collect(ctx context.Context, ipList []strin
 			if err != nil {
 				klog.Errorf("failed to GetTask for IP %s, err %v", ip, err)
 			} else if task != nil {
+				mu.Lock()
 				ret[ip] = task
+				mu.Unlock()
 			}
 		}(ip)
 	}
 	wg.Wait()
+	klog.Infof("Collect task status %s", utils.DumpJSON(ret))
 	return ret
 }
