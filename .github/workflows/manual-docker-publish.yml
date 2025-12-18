@@ -63,6 +63,13 @@ jobs:
             echo "image_tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          df -h
+
       - name: Build and push to registries
         run: |
           COMPONENT="${{ steps.parse_tag.outputs.component }}"
