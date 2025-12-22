@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/logo.svg" alt="OpenSandbox logo" width="150" />
+  <img src="assets/logo.svg" alt="OpenSandbox logo" width="150" />
 
   <h1>OpenSandbox</h1>
 
