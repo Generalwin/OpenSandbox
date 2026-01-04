@@ -201,6 +201,7 @@ class CodesAdapterSync(CodesSync):
         self,
         code: str,
         *,
+        language: str | None = None,
         context: CodeContextSync | None = None,
         handlers: ExecutionHandlersSync | None = None,
     ) -> Execution:
@@ -224,7 +225,15 @@ class CodesAdapterSync(CodesSync):
             raise InvalidArgumentException("Code cannot be empty")
 
         try:
-            context = context or CodeContextSync(language=SupportedLanguageSync.PYTHON)
+            if context is not None and language is not None and context.language != language:
+                raise InvalidArgumentException(
+                    f"language '{language}' must match context.language '{context.language}'"
+                )
+
+            if context is None:
+                # Default context: language default context (server-side behavior).
+                # When context.id is omitted, execd will create/reuse a default session per language.
+                context = CodeContextSync(language=language or SupportedLanguageSync.PYTHON)
             api_request = {
                 "code": code,
                 "context": {

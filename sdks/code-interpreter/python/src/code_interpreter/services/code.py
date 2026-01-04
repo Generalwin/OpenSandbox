@@ -20,7 +20,7 @@ Defines the contract for multi-language code interpretation with context managem
 session persistence, and real-time execution capabilities.
 """
 
-from typing import Protocol
+from typing import Protocol, overload
 
 from opensandbox.models.execd import Execution, ExecutionHandlers
 
@@ -133,10 +133,29 @@ class Codes(Protocol):
         """
         ...
 
+    @overload
     async def run(
         self,
         code: str,
         *,
+        context: CodeContext,
+        handlers: ExecutionHandlers | None = None,
+    ) -> Execution: ...
+
+    @overload
+    async def run(
+        self,
+        code: str,
+        *,
+        language: str,
+        handlers: ExecutionHandlers | None = None,
+    ) -> Execution: ...
+
+    async def run(
+        self,
+        code: str,
+        *,
+        language: str | None = None,
         context: CodeContext | None = None,
         handlers: ExecutionHandlers | None = None,
     ) -> Execution:
@@ -157,7 +176,11 @@ class Codes(Protocol):
 
         Args:
             code: Source code to execute.
-            context: Execution context (language + optional id). If None, a temporary Python context is used.
+            language: Convenience language selector for this run. If provided and ``context`` is None,
+                a **default context for this language** is used (execd will create/reuse a default
+                session when ``context.id`` is omitted). If both ``language`` and ``context`` are
+                provided, they must match.
+            context: Execution context (language + optional id). If None, the default Python context is used.
             handlers: Optional streaming handlers for stdout/stderr/events.
 
         Returns:

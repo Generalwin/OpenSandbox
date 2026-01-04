@@ -100,6 +100,60 @@ interface Codes {
     }
 
     /**
+     * Executes code within the specified context.
+     *
+     * @param code The code to run
+     * @param context The context to run code
+     * @return Execution with stdout, stderr, exit code, and execution metadata
+     */
+    fun run(
+        code: String,
+        context: CodeContext,
+    ): Execution {
+        return run(RunCodeRequest.builder().code(code).context(context).build())
+    }
+
+    /**
+     * Run code with specified language within the default context
+     *
+     * @param code The code to run
+     * @param language The language of code
+     * @param handlers execution events handlers
+     * @return Execution with stdout, stderr, exit code, and execution metadata
+     */
+    fun run(
+        code: String,
+        language: String,
+        handlers: ExecutionHandlers,
+    ): Execution {
+        return run(
+            RunCodeRequest
+                .builder()
+                .code(code)
+                .context(CodeContext.builder().language(language).build()).handlers(handlers).build(),
+        )
+    }
+
+    /**
+     * Run code with specified language within the default context
+     *
+     * @param code The code to run
+     * @param language The language of code
+     * @return Execution with stdout, stderr, exit code, and execution metadata
+     */
+    fun run(
+        code: String,
+        language: String,
+    ): Execution {
+        return run(
+            RunCodeRequest
+                .builder()
+                .code(code)
+                .context(CodeContext.builder().language(language).build()).build(),
+        )
+    }
+
+    /**
      * Interrupts a currently running code execution.
      *
      * @param executionId The unique identifier of the execution to interrupt

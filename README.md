@@ -3,12 +3,11 @@
 
   <h1>OpenSandbox</h1>
 
-  [![GitHub stars](https://img.shields.io/github/stars/alibaba/OpenSandbox.svg?style=social)](https://github.com/alibaba/OpenSandbox)
-  [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/alibaba/OpenSandbox)
-  [![license](https://img.shields.io/github/license/alibaba/OpenSandbox.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-  [![PyPI version](https://badge.fury.io/py/opensandbox.svg)](https://badge.fury.io/py/opensandbox)
-  [![E2E Status](https://github.com/alibaba/OpenSandbox/actions/workflows/real-e2e.yml/badge.svg?branch=main)](https://github.com/alibaba/OpenSandbox/actions)
-
+[![GitHub stars](https://img.shields.io/github/stars/alibaba/OpenSandbox.svg?style=social)](https://github.com/alibaba/OpenSandbox)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/alibaba/OpenSandbox)
+[![license](https://img.shields.io/github/license/alibaba/OpenSandbox.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+[![PyPI version](https://badge.fury.io/py/opensandbox.svg)](https://badge.fury.io/py/opensandbox)
+[![E2E Status](https://github.com/alibaba/OpenSandbox/actions/workflows/real-e2e.yml/badge.svg?branch=main)](https://github.com/alibaba/OpenSandbox/actions)
 
   <hr />
 </div>
@@ -63,7 +62,7 @@ Create a sandbox and execute commands
 import asyncio
 from datetime import timedelta
 
-from code_interpreter import CodeInterpreter, SupportedLanguage, CodeContext
+from code_interpreter import CodeInterpreter, SupportedLanguage
 from opensandbox import Sandbox
 from opensandbox.models import WriteEntry
 
@@ -94,7 +93,7 @@ async def main() -> None:
         # 5. Create a code interpreter
         interpreter = await CodeInterpreter.create(sandbox)
 
-        # 6. Execute Python code
+        # 6. Execute Python code (single-run, pass language directly)
         result = await interpreter.codes.run(
               """
                   import sys
@@ -102,7 +101,7 @@ async def main() -> None:
                   result = 2 + 2
                   result
               """,
-              context=CodeContext(language=SupportedLanguage.PYTHON)
+              language=SupportedLanguage.PYTHON,
         )
 
         print(result.result[0].text) # 4
@@ -122,6 +121,7 @@ OpenSandbox provides rich examples demonstrating sandbox usage in different scen
 #### 🎯 Basic Examples
 
 - **[code-interpreter](examples/code-interpreter/README.md)** - Complete Code Interpreter SDK example
+
   - Run commands and execute Python/Java/Go/TypeScript code inside a sandbox
   - Covers context creation, code execution, and result streaming
   - Supports custom language versions

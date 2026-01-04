@@ -383,6 +383,18 @@ class TestCodeInterpreterE2E:
         logger.info("TEST 3: Python code execution")
         logger.info("=" * 80)
 
+        # New usage: directly pass a language string (ephemeral context).
+        # This validates the `codes.run(..., language=...)` convenience interface.
+        direct_lang_result = await code_interpreter.codes.run(
+            "result = 2 + 2\nresult",
+            language=SupportedLanguage.PYTHON,
+        )
+        assert direct_lang_result is not None
+        assert direct_lang_result.id is not None and direct_lang_result.id.strip()
+        assert direct_lang_result.error is None
+        assert len(direct_lang_result.result) > 0
+        assert direct_lang_result.result[0].text == "4"
+
         stdout_messages: list[OutputMessage] = []
         stderr_messages: list[OutputMessage] = []
         errors: list[ExecutionError] = []

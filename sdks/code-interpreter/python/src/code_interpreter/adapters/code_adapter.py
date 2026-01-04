@@ -236,6 +236,7 @@ class CodesAdapter(Codes):
         self,
         code: str,
         *,
+        language: str | None = None,
         context: CodeContext | None = None,
         handlers: ExecutionHandlers | None = None,
     ) -> Execution:
@@ -249,8 +250,15 @@ class CodesAdapter(Codes):
             raise InvalidArgumentException("Code cannot be empty")
 
         try:
-            # Default context: ephemeral python context (server-side behavior)
-            context = context or CodeContext(language=SupportedLanguage.PYTHON)
+            if context is not None and language is not None and context.language != language:
+                raise InvalidArgumentException(
+                    f"language '{language}' must match context.language '{context.language}'"
+                )
+
+            # Default context: language default context (server-side behavior).
+            # When context.id is omitted, execd will create/reuse a default session per language.
+            if context is None:
+                context = CodeContext(language=language or SupportedLanguage.PYTHON)
             api_request = CodeExecutionConverter.to_api_run_code_request(code, context)
 
             # Prepare URL

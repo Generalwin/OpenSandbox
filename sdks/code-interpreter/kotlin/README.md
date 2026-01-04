@@ -124,6 +124,21 @@ Sandbox sandbox = Sandbox.builder()
 
 ## Usage Examples
 
+### 0. Run with `language` (default language context)
+
+If you don't need to manage explicit session IDs, you can run code by specifying only `language`.
+When `context.id` is omitted, **execd will create/reuse a default session for that language**, so
+state can persist across runs:
+
+```java
+import com.alibaba.opensandbox.codeinterpreter.domain.models.execd.executions.SupportedLanguage;
+
+// Default Python context: state persists across runs
+interpreter.codes().run("x = 42", SupportedLanguage.PYTHON);
+Execution execution = interpreter.codes().run("result = x\nresult", SupportedLanguage.PYTHON);
+System.out.println(execution.getResult().get(0).getText()); // 42
+```
+
 ### 1. Java Code Execution
 
 Execute Java code snippets dynamically.

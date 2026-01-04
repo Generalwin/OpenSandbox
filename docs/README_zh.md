@@ -8,7 +8,6 @@
 [![license](https://img.shields.io/github/license/alibaba/OpenSandbox.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 [![PyPI version](https://badge.fury.io/py/opensandbox.svg)](https://badge.fury.io/py/opensandbox)
 
-
   <hr />
 </div>
 
@@ -62,7 +61,7 @@ uv pip install opensandbox-code-interpreter
 import asyncio
 from datetime import timedelta
 
-from code_interpreter import CodeInterpreter, SupportedLanguage, CodeContext
+from code_interpreter import CodeInterpreter, SupportedLanguage
 from opensandbox import Sandbox
 from opensandbox.models import WriteEntry
 
@@ -93,7 +92,7 @@ async def main() -> None:
         # 5. Create a code interpreter
         interpreter = await CodeInterpreter.create(sandbox)
 
-        # 6. Execute a Python code
+        # 6. 执行 Python 代码（单次执行：直接传 language）
         result = await interpreter.codes.run(
               """
                   import sys
@@ -101,7 +100,7 @@ async def main() -> None:
                   result = 2 + 2
                   result
               """,
-              context=CodeContext(language=SupportedLanguage.PYTHON)
+              language=SupportedLanguage.PYTHON,
         )
 
         print(result.result[0].text) # 4
