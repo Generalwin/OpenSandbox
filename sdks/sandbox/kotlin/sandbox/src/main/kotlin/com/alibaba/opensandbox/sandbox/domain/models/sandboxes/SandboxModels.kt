@@ -108,7 +108,7 @@ class SandboxFilter private constructor(
         }
 
         fun page(page: Int): Builder {
-            require(page >= 0) { "Page must be non-negative" }
+            require(page > 0) { "Page must be positive" }
             this.page = page
             return this
         }
