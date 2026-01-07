@@ -2,6 +2,7 @@
 title: FQDN-based Egress Control
 authors:
   - "@hittyt"
+  - "@Pangjiping"
 creation-date: 2025-12-27
 last-updated: 2026-01-07
 status: implementing
