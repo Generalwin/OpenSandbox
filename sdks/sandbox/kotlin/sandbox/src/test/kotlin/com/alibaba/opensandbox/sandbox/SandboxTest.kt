@@ -41,7 +41,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import java.time.Duration
-import java.util.UUID
 
 @ExtendWith(MockKExtension::class)
 class SandboxTest {
@@ -64,7 +63,7 @@ class SandboxTest {
     lateinit var httpClientProvider: HttpClientProvider
 
     private lateinit var sandbox: Sandbox
-    private val sandboxId = UUID.randomUUID()
+    private val sandboxId = "sandbox-id"
 
     @BeforeEach
     fun setUp() {

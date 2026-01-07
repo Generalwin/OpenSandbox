@@ -22,7 +22,6 @@ support, session management, and variable persistence.
 """
 
 import logging
-from uuid import UUID
 
 from opensandbox.exceptions import (
     InvalidArgumentException,
@@ -110,12 +109,12 @@ class CodeInterpreter:
         return self._sandbox
 
     @property
-    def id(self) -> UUID:
+    def id(self) -> str:
         """
         Gets the unique identifier of this code interpreter (same as underlying sandbox ID).
 
         Returns:
-            UUID of the code interpreter/sandbox
+            ID of the code interpreter/sandbox
         """
         return self._sandbox.id
 

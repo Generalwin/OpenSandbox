@@ -31,7 +31,6 @@ import asyncio
 import logging
 import time
 from datetime import timedelta
-from uuid import UUID
 
 import pytest
 from code_interpreter import CodeInterpreter
@@ -167,7 +166,7 @@ class TestCodeInterpreterE2E:
         cls.code_interpreter = await CodeInterpreter.create(sandbox=cls.sandbox)
 
         assert cls.code_interpreter is not None
-        assert isinstance(cls.code_interpreter.id, UUID)
+        assert isinstance(cls.code_interpreter.id, str)
         logger.info("✓ CodeInterpreter created: %s", cls.code_interpreter.id)
         logger.info("=" * 100)
 

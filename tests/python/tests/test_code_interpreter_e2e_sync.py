@@ -23,7 +23,6 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from uuid import UUID
 
 import pytest
 from code_interpreter import CodeInterpreterSync
@@ -157,7 +156,7 @@ class TestCodeInterpreterE2ESync:
 
         cls.code_interpreter = CodeInterpreterSync.create(sandbox=cls.sandbox)
         assert cls.code_interpreter is not None
-        assert isinstance(cls.code_interpreter.id, UUID)
+        assert isinstance(cls.code_interpreter.id, str)
         cls._setup_done = True
 
     @pytest.mark.timeout(600)

@@ -20,7 +20,6 @@ Models for sandbox creation, configuration, status, and lifecycle management.
 """
 
 from datetime import datetime
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -122,7 +121,7 @@ class SandboxInfo(BaseModel):
     Detailed information about a sandbox instance.
     """
 
-    id: UUID = Field(description="Unique identifier of the sandbox")
+    id: str = Field(description="Unique identifier of the sandbox")
     status: SandboxStatus = Field(description="Current status of the sandbox")
     entrypoint: list[str] = Field(
         description="Command line arguments used to start the sandbox"
@@ -144,7 +143,7 @@ class SandboxCreateResponse(BaseModel):
     Response returned when a sandbox is created.
     """
 
-    id: UUID = Field(description="Unique identifier of the newly created sandbox")
+    id: str = Field(description="Unique identifier of the newly created sandbox")
 
 
 class SandboxRenewResponse(BaseModel):

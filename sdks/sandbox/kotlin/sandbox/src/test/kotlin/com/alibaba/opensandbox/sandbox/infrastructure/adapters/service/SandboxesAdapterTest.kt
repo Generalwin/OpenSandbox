@@ -33,7 +33,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
-import java.util.UUID
 
 class SandboxesAdapterTest {
     private lateinit var mockWebServer: MockWebServer
@@ -95,7 +94,7 @@ class SandboxesAdapterTest {
         // Verify request
         val request = mockWebServer.takeRequest()
         assertEquals("POST", request.method)
-        assertEquals("/sandboxes", request.path)
+        assertEquals("/v1/sandboxes", request.path)
         val requestBody = request.body.readUtf8()
         assertTrue(requestBody.isNotBlank(), "request body should not be blank")
 
@@ -106,12 +105,12 @@ class SandboxesAdapterTest {
         assertEquals("true", gotExtensions["debug"]!!.jsonPrimitive.content)
 
         // Verify response
-        assertEquals(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"), result.id)
+        assertEquals("550e8400-e29b-41d4-a716-446655440000", result.id)
     }
 
     @Test
     fun `getSandboxInfo should parse response correctly`() {
-        val sandboxId = UUID.randomUUID()
+        val sandboxId = "sandbox-id"
         val responseBody =
             """
             {
@@ -141,7 +140,7 @@ class SandboxesAdapterTest {
         assertEquals("ubuntu:latest", result.image.image)
 
         val request = mockWebServer.takeRequest()
-        assertEquals("/sandboxes/$sandboxId", request.path)
+        assertEquals("/v1/sandboxes/$sandboxId", request.path)
     }
 
     @Test

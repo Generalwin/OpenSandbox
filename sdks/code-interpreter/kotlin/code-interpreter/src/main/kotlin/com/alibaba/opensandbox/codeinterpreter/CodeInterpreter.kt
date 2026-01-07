@@ -24,7 +24,6 @@ import com.alibaba.opensandbox.sandbox.domain.exceptions.SandboxException
 import com.alibaba.opensandbox.sandbox.domain.exceptions.SandboxInternalException
 import com.alibaba.opensandbox.sandbox.domain.models.execd.DEFAULT_EXECD_PORT
 import org.slf4j.LoggerFactory
-import java.util.UUID
 
 /**
  * Code Interpreter SDK providing secure, isolated code execution capabilities.
@@ -92,7 +91,7 @@ class CodeInterpreter internal constructor(
     /**
      * Gets the unique identifier of this code interpreter (same as underlying sandbox ID).
      */
-    val id: UUID get() = sandbox.id
+    val id: String get() = sandbox.id
 
     /**
      * Provides access to file system operations within the sandbox.

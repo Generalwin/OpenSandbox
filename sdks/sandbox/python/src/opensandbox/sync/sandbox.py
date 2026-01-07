@@ -22,7 +22,6 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from uuid import UUID
 
 from opensandbox.config.connection_sync import ConnectionConfigSync
 from opensandbox.constants import DEFAULT_EXECD_PORT
@@ -110,7 +109,7 @@ class SandboxSync:
 
     def __init__(
         self,
-        sandbox_id: UUID,
+        sandbox_id: str,
         sandbox_service: SandboxesSync,
         filesystem_service: FilesystemSync,
         command_service: CommandsSync,
@@ -389,7 +388,7 @@ class SandboxSync:
             timeout.total_seconds(),
         )
         factory = AdapterFactorySync(config)
-        sandbox_id: UUID | None = None
+        sandbox_id: str | None = None
         sandbox_service: SandboxesSync | None = None
 
         try:
@@ -439,7 +438,7 @@ class SandboxSync:
     @classmethod
     def connect(
         cls,
-        sandbox_id: str | UUID,
+        sandbox_id: str,
         connection_config: ConnectionConfigSync | None = None,
         health_check: Callable[["SandboxSync"], bool] | None = None,
         connect_timeout: timedelta = timedelta(seconds=30),
@@ -466,8 +465,8 @@ class SandboxSync:
         """
         if not sandbox_id:
             raise InvalidArgumentException("Sandbox ID must be specified")
-        if isinstance(sandbox_id, str):
-            sandbox_id = UUID(sandbox_id)
+        # Accept any string identifier.
+        sandbox_id = str(sandbox_id)
 
         config = connection_config or ConnectionConfigSync()
         logger.info("Connecting to sandbox: %s", sandbox_id)
@@ -507,7 +506,7 @@ class SandboxSync:
     @classmethod
     def resume(
             cls,
-            sandbox_id: str | UUID,
+            sandbox_id: str,
             connection_config: ConnectionConfigSync | None = None,
             health_check: Callable[["SandboxSync"], bool] | None = None,
             resume_timeout: timedelta = timedelta(seconds=30),
@@ -532,8 +531,8 @@ class SandboxSync:
         if not sandbox_id:
             raise InvalidArgumentException("Sandbox ID must be specified")
 
-        if isinstance(sandbox_id, str):
-            sandbox_id = UUID(sandbox_id)
+        # Accept any string identifier.
+        sandbox_id = str(sandbox_id)
 
         config = connection_config or ConnectionConfigSync()
 

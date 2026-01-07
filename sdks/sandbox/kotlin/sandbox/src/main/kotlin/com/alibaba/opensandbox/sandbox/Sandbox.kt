@@ -36,7 +36,6 @@ import com.alibaba.opensandbox.sandbox.infrastructure.factory.AdapterFactory
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.UUID
 
 /**
  * Main entrypoint for the Open Sandbox SDK providing secure, isolated execution environments.
@@ -76,7 +75,7 @@ import java.util.UUID
  *
  */
 class Sandbox internal constructor(
-    val id: UUID,
+    val id: String,
     private val sandboxService: Sandboxes,
     private val fileSystemService: Filesystem,
     private val commandService: Commands,
@@ -147,11 +146,11 @@ class Sandbox internal constructor(
          * Initialization result indicating the type of sandbox being initialized.
          */
         private sealed class InitializationResult {
-            abstract val id: UUID
+            abstract val id: String
 
-            data class NewSandbox(override val id: UUID) : InitializationResult()
+            data class NewSandbox(override val id: String) : InitializationResult()
 
-            data class ExistingSandbox(override val id: UUID) : InitializationResult()
+            data class ExistingSandbox(override val id: String) : InitializationResult()
         }
 
         /**
@@ -310,7 +309,7 @@ class Sandbox internal constructor(
          * @throws SandboxException if connection fails
          */
         private fun connect(
-            sandboxId: UUID,
+            sandboxId: String,
             connectionConfig: ConnectionConfig,
             healthCheck: ((Sandbox) -> Boolean)? = null,
             connectTimeout: Duration,
@@ -347,7 +346,7 @@ class Sandbox internal constructor(
          * @throws SandboxException if resume or readiness check fails
          */
         private fun resume(
-            sandboxId: UUID,
+            sandboxId: String,
             connectionConfig: ConnectionConfig,
             healthCheck: ((Sandbox) -> Boolean)? = null,
             resumeTimeout: Duration,
@@ -561,7 +560,7 @@ class Sandbox internal constructor(
         /**
          * Sandbox ID to connect to
          */
-        private var sandboxId: UUID? = null
+        private var sandboxId: String? = null
 
         /**
          * Connection config
@@ -593,11 +592,11 @@ class Sandbox internal constructor(
         /**
          * Sets the sandbox ID to connect to.
          *
-         * @param sandboxId UUID string of the existing sandbox
+         * @param sandboxId ID of the existing sandbox
          * @return This connector for method chaining
          * @throws InvalidArgumentException if sandboxId is blank
          */
-        fun sandboxId(sandboxId: UUID): Connector {
+        fun sandboxId(sandboxId: String): Connector {
             this.sandboxId = sandboxId
             return this
         }
@@ -1098,7 +1097,7 @@ class Sandbox internal constructor(
         /**
          * Sandbox ID to resume
          */
-        private var sandboxId: UUID? = null
+        private var sandboxId: String? = null
 
         /**
          * Connection config
@@ -1130,10 +1129,10 @@ class Sandbox internal constructor(
         /**
          * Sets the sandbox ID to resume.
          *
-         * @param sandboxId UUID of the paused sandbox
+         * @param sandboxId ID of the paused sandbox
          * @return This resumer for method chaining
          */
-        fun sandboxId(sandboxId: UUID): Resumer {
+        fun sandboxId(sandboxId: String): Resumer {
             this.sandboxId = sandboxId
             return this
         }

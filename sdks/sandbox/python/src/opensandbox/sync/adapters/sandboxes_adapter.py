@@ -19,7 +19,6 @@ Synchronous sandbox service adapter implementation.
 
 import logging
 from datetime import datetime, timedelta
-from uuid import UUID
 
 import httpx
 
@@ -119,7 +118,7 @@ class SandboxesAdapterSync(SandboxesSync):
             logger.error("Failed to create sandbox with image: %s", spec.image, exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    def get_sandbox_info(self, sandbox_id: UUID) -> SandboxInfo:
+    def get_sandbox_info(self, sandbox_id: str) -> SandboxInfo:
         try:
             from opensandbox.api.lifecycle.api.sandboxes import get_sandboxes_sandbox_id
             from opensandbox.api.lifecycle.models import Sandbox as ApiSandbox
@@ -171,7 +170,7 @@ class SandboxesAdapterSync(SandboxesSync):
             logger.error("Failed to list sandboxes", exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    def get_sandbox_endpoint(self, sandbox_id: UUID, port: int) -> SandboxEndpoint:
+    def get_sandbox_endpoint(self, sandbox_id: str, port: int) -> SandboxEndpoint:
         try:
             from opensandbox.api.lifecycle.api.sandboxes import (
                 get_sandboxes_sandbox_id_endpoints_port,
@@ -190,7 +189,7 @@ class SandboxesAdapterSync(SandboxesSync):
             logger.error("Failed to retrieve sandbox endpoint for sandbox %s", sandbox_id, exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    def pause_sandbox(self, sandbox_id: UUID) -> None:
+    def pause_sandbox(self, sandbox_id: str) -> None:
         try:
             from opensandbox.api.lifecycle.api.sandboxes import (
                 post_sandboxes_sandbox_id_pause,
@@ -204,7 +203,7 @@ class SandboxesAdapterSync(SandboxesSync):
             logger.error("Failed to pause sandbox: %s", sandbox_id, exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    def resume_sandbox(self, sandbox_id: UUID) -> None:
+    def resume_sandbox(self, sandbox_id: str) -> None:
         try:
             from opensandbox.api.lifecycle.api.sandboxes import (
                 post_sandboxes_sandbox_id_resume,
@@ -219,7 +218,7 @@ class SandboxesAdapterSync(SandboxesSync):
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
     def renew_sandbox_expiration(
-        self, sandbox_id: UUID, new_expiration_time: datetime
+        self, sandbox_id: str, new_expiration_time: datetime
     ) -> SandboxRenewResponse:
         try:
             from opensandbox.api.lifecycle.api.sandboxes import (
@@ -246,7 +245,7 @@ class SandboxesAdapterSync(SandboxesSync):
             logger.error("Failed to renew sandbox %s expiration", sandbox_id, exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    def kill_sandbox(self, sandbox_id: UUID) -> None:
+    def kill_sandbox(self, sandbox_id: str) -> None:
         try:
             from opensandbox.api.lifecycle.api.sandboxes import (
                 delete_sandboxes_sandbox_id,

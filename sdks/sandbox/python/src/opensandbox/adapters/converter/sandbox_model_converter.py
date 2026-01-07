@@ -23,7 +23,6 @@ This converter is designed to work with openapi-python-client generated models,
 which use attrs for model definitions.
 """
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
 
 from opensandbox.api.lifecycle.models import (
     CreateSandboxResponse,
@@ -180,9 +179,7 @@ class SandboxModelConverter:
         from opensandbox.models.sandboxes import SandboxCreateResponse
 
         return SandboxCreateResponse(
-            id=UUID(api_response.id)
-            if isinstance(api_response.id, str)
-            else api_response.id
+            id=str(api_response.id)
         )
 
     @staticmethod

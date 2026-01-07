@@ -37,7 +37,6 @@ import com.alibaba.opensandbox.sandbox.infrastructure.adapters.converter.toSandb
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.UUID
 
 /**
  * Implementation of [Sandboxes] that adapts OpenAPI-generated [SandboxesApi].
@@ -85,7 +84,7 @@ internal class SandboxesAdapter(
         }
     }
 
-    override fun getSandboxInfo(sandboxId: UUID): SandboxInfo {
+    override fun getSandboxInfo(sandboxId: String): SandboxInfo {
         logger.debug("Retrieving sandbox information: {}", sandboxId)
 
         return try {
@@ -107,7 +106,7 @@ internal class SandboxesAdapter(
     }
 
     override fun getSandboxEndpoint(
-        sandboxId: UUID,
+        sandboxId: String,
         port: Int,
     ): SandboxEndpoint {
         logger.debug("Retrieving sandbox endpoint: {}, port {}", sandboxId, port)
@@ -119,7 +118,7 @@ internal class SandboxesAdapter(
         }
     }
 
-    override fun pauseSandbox(sandboxId: UUID) {
+    override fun pauseSandbox(sandboxId: String) {
         logger.info("Pausing sandbox: {}", sandboxId)
 
         try {
@@ -131,7 +130,7 @@ internal class SandboxesAdapter(
         }
     }
 
-    override fun resumeSandbox(sandboxId: UUID) {
+    override fun resumeSandbox(sandboxId: String) {
         logger.info("Resuming sandbox: {}", sandboxId)
 
         try {
@@ -144,7 +143,7 @@ internal class SandboxesAdapter(
     }
 
     override fun renewSandboxExpiration(
-        sandboxId: UUID,
+        sandboxId: String,
         newExpirationTime: OffsetDateTime,
     ): SandboxRenewResponse {
         logger.info("Renew sandbox {} expiration to {}", sandboxId, newExpirationTime)
@@ -165,7 +164,7 @@ internal class SandboxesAdapter(
         }
     }
 
-    override fun killSandbox(sandboxId: UUID) {
+    override fun killSandbox(sandboxId: String) {
         logger.info("Terminating sandbox: {}", sandboxId)
 
         return try {

@@ -31,7 +31,6 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import java.util.UUID
 
 @ExtendWith(MockKExtension::class)
 class CodeInterpreterTest {
@@ -42,7 +41,7 @@ class CodeInterpreterTest {
     lateinit var codeService: Codes
 
     private lateinit var codeInterpreter: CodeInterpreter
-    private val sandboxId = UUID.randomUUID()
+    private val sandboxId = "sandbox-id"
 
     @BeforeEach
     fun setUp() {

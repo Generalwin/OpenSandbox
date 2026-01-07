@@ -23,7 +23,6 @@ the auto-generated API client, handling all model conversions and error mapping.
 
 import logging
 from datetime import datetime, timedelta
-from uuid import UUID
 
 import httpx  # type: ignore[reportMissingImports]
 
@@ -153,7 +152,7 @@ class SandboxesAdapter(Sandboxes):
             )
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    async def get_sandbox_info(self, sandbox_id: UUID) -> SandboxInfo:
+    async def get_sandbox_info(self, sandbox_id: str) -> SandboxInfo:
         """Retrieve detailed information about a sandbox."""
         logger.debug(f"Retrieving sandbox information: {sandbox_id}")
 
@@ -213,7 +212,7 @@ class SandboxesAdapter(Sandboxes):
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
     async def get_sandbox_endpoint(
-        self, sandbox_id: UUID, port: int
+        self, sandbox_id: str, port: int
     ) -> SandboxEndpoint:
         """Get network endpoint information for a sandbox service."""
         logger.debug(f"Retrieving sandbox endpoint: {sandbox_id}, port {port}")
@@ -247,7 +246,7 @@ class SandboxesAdapter(Sandboxes):
             )
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    async def pause_sandbox(self, sandbox_id: UUID) -> None:
+    async def pause_sandbox(self, sandbox_id: str) -> None:
         """Pause a running sandbox while preserving its state."""
         logger.info(f"Pausing sandbox: {sandbox_id}")
 
@@ -270,7 +269,7 @@ class SandboxesAdapter(Sandboxes):
             logger.error(f"Failed to initiate pause sandbox: {sandbox_id}", exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    async def resume_sandbox(self, sandbox_id: UUID) -> None:
+    async def resume_sandbox(self, sandbox_id: str) -> None:
         """Resume a previously paused sandbox."""
         logger.info(f"Resuming sandbox: {sandbox_id}")
 
@@ -294,7 +293,7 @@ class SandboxesAdapter(Sandboxes):
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
     async def renew_sandbox_expiration(
-        self, sandbox_id: UUID, new_expiration_time: datetime
+        self, sandbox_id: str, new_expiration_time: datetime
     ) -> SandboxRenewResponse:
         """Extend the expiration time of a sandbox."""
         logger.info(f"Renew sandbox {sandbox_id} expiration to {new_expiration_time}")
@@ -339,7 +338,7 @@ class SandboxesAdapter(Sandboxes):
             logger.error(f"Failed to renew sandbox {sandbox_id} expiration", exc_info=e)
             raise ExceptionConverter.to_sandbox_exception(e) from e
 
-    async def kill_sandbox(self, sandbox_id: UUID) -> None:
+    async def kill_sandbox(self, sandbox_id: str) -> None:
         """Permanently terminate a sandbox and clean up its resources."""
         logger.info(f"Terminating sandbox: {sandbox_id}")
 

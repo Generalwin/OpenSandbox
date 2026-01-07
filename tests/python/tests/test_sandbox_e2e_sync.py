@@ -24,7 +24,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from io import BytesIO
-from uuid import UUID
 
 import pytest
 from opensandbox import SandboxSync
@@ -175,7 +174,7 @@ class TestSandboxE2ESync:
         logger.info("TEST 1: Testing sandbox lifecycle and health monitoring (sync)")
         logger.info("=" * 80)
 
-        assert isinstance(sandbox.id, UUID)
+        assert isinstance(sandbox.id, str)
         assert sandbox.is_healthy() is True
 
         info = sandbox.get_info()

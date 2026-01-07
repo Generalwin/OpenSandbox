@@ -17,7 +17,6 @@
 package com.alibaba.opensandbox.sandbox.domain.models.sandboxes
 
 import java.time.OffsetDateTime
-import java.util.UUID
 
 /**
  * High-level lifecycle state of the sandbox.
@@ -230,7 +229,7 @@ class SandboxImageAuth private constructor(
  * @property metadata Custom metadata attached to the sandbox
  */
 class SandboxInfo(
-    val id: UUID,
+    val id: String,
     val status: SandboxStatus,
     val entrypoint: List<String>,
     val expiresAt: OffsetDateTime,
@@ -260,7 +259,7 @@ class SandboxStatus(
  * @property id Unique identifier of the newly created sandbox
  */
 class SandboxCreateResponse(
-    val id: UUID,
+    val id: String,
 )
 
 /**

@@ -177,7 +177,11 @@ public class SandboxE2ETest extends BaseE2ETest {
                 "renew().expiresAt should be after previous expiresAt");
         // Allow small skew between renew response and subsequent getInfo() (backend timing).
         assertTrue(
-                Math.abs(Duration.between(renewResp.getExpiresAt(), renewedInfo.getExpiresAt()).toSeconds())
+                Math.abs(
+                                Duration.between(
+                                                renewResp.getExpiresAt(),
+                                                renewedInfo.getExpiresAt())
+                                        .toSeconds())
                         < 10,
                 "renew response expiresAt should be close to getInfo().expiresAt");
         Duration remaining = Duration.between(OffsetDateTime.now(), renewedInfo.getExpiresAt());

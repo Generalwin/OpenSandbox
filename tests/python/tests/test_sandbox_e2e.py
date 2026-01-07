@@ -22,7 +22,6 @@ import logging
 import time
 from datetime import timedelta
 from io import BytesIO
-from uuid import UUID
 
 import pytest
 from opensandbox import Sandbox
@@ -174,7 +173,7 @@ class TestSandboxE2E:
 
         logger.info("Step 1: Verify basic sandbox properties")
         assert sandbox is not None
-        assert isinstance(sandbox.id, UUID)
+        assert isinstance(sandbox.id, str)
         assert await sandbox.is_healthy() is True
         logger.info(f"✓ Sandbox ID: {sandbox.id}")
         logger.info("✓ Sandbox is healthy")

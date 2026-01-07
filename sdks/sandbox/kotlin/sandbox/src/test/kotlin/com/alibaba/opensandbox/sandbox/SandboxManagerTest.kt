@@ -39,7 +39,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.UUID
 
 @ExtendWith(MockKExtension::class)
 class SandboxManagerTest {
@@ -83,7 +82,7 @@ class SandboxManagerTest {
 
     @Test
     fun `getSandboxInfo should return info from service`() {
-        val sandboxId = UUID.randomUUID()
+        val sandboxId = "sandbox-id"
         val status =
             SandboxStatus(
                 state = SandboxState.RUNNING,
@@ -113,7 +112,7 @@ class SandboxManagerTest {
 
     @Test
     fun `killSandbox should call service`() {
-        val sandboxId = UUID.randomUUID()
+        val sandboxId = "sandbox-id"
         every { sandboxService.killSandbox(sandboxId) } just Runs
 
         sandboxManager.killSandbox(sandboxId)
@@ -123,7 +122,7 @@ class SandboxManagerTest {
 
     @Test
     fun `renewSandbox should call service`() {
-        val sandboxId = UUID.randomUUID()
+        val sandboxId = "sandbox-id"
         val timeout = Duration.ofMinutes(30)
         val expectedRenew = mockk<SandboxRenewResponse>()
 
@@ -136,7 +135,7 @@ class SandboxManagerTest {
 
     @Test
     fun `pauseSandbox should call service`() {
-        val sandboxId = UUID.randomUUID()
+        val sandboxId = "sandbox-id"
         every { sandboxService.pauseSandbox(sandboxId) } just Runs
 
         sandboxManager.pauseSandbox(sandboxId)
@@ -146,7 +145,7 @@ class SandboxManagerTest {
 
     @Test
     fun `resumeSandbox should call service`() {
-        val sandboxId = UUID.randomUUID()
+        val sandboxId = "sandbox-id"
         every { sandboxService.resumeSandbox(sandboxId) } just Runs
 
         sandboxManager.resumeSandbox(sandboxId)

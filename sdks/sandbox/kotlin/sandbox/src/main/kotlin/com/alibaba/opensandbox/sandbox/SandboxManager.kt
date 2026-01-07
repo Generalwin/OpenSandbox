@@ -28,7 +28,6 @@ import com.alibaba.opensandbox.sandbox.infrastructure.factory.AdapterFactory
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.UUID
 
 /**
  * Sandbox management interface for administrative operations and monitoring sandbox instances.
@@ -56,7 +55,7 @@ import java.util.UUID
  * )
  *
  * // Individual operations
- * val sandboxId = UUID.fromString("sandbox-id")
+ * val sandboxId = "sandbox-id"
  * manager.getSandboxInfo(sandboxId)
  * manager.pauseSandbox(sandboxId)
  * manager.resumeSandbox(sandboxId)
@@ -105,7 +104,7 @@ class SandboxManager internal constructor(
      * @return SandboxInfo for the specified sandbox
      * @throws SandboxException if the operation fails
      */
-    fun getSandboxInfo(sandboxId: UUID): SandboxInfo {
+    fun getSandboxInfo(sandboxId: String): SandboxInfo {
         logger.debug("Getting info for sandbox: {}", sandboxId)
         return sandboxService.getSandboxInfo(sandboxId)
     }
@@ -116,7 +115,7 @@ class SandboxManager internal constructor(
      * @param sandboxId Sandbox ID to terminate
      * @throws SandboxException if the operation fails
      */
-    fun killSandbox(sandboxId: UUID) {
+    fun killSandbox(sandboxId: String) {
         logger.info("Terminating sandbox: {}", sandboxId)
         sandboxService.killSandbox(sandboxId)
         logger.info("Successfully terminated sandbox: {}", sandboxId)
@@ -132,7 +131,7 @@ class SandboxManager internal constructor(
      * @throws SandboxException if the operation fails
      */
     fun renewSandbox(
-        sandboxId: UUID,
+        sandboxId: String,
         timeout: Duration,
     ): SandboxRenewResponse {
         logger.info("Renew expiration for sandbox {} to {}", sandboxId, OffsetDateTime.now().plus(timeout))
@@ -145,7 +144,7 @@ class SandboxManager internal constructor(
      * @param sandboxId Sandbox ID to pause
      * @throws SandboxException if the operation fails
      */
-    fun pauseSandbox(sandboxId: UUID) {
+    fun pauseSandbox(sandboxId: String) {
         logger.info("Pausing sandbox: {}", sandboxId)
         sandboxService.pauseSandbox(sandboxId)
     }
@@ -156,7 +155,7 @@ class SandboxManager internal constructor(
      * @param sandboxId Sandbox ID to resume
      * @throws SandboxException if the operation fails
      */
-    fun resumeSandbox(sandboxId: UUID) {
+    fun resumeSandbox(sandboxId: String) {
         logger.info("Resuming sandbox: {}", sandboxId)
         sandboxService.resumeSandbox(sandboxId)
     }
