@@ -10,6 +10,7 @@ on:
         options:
           - execd
           - code-interpreter
+          - ingress
           - egress
         default: 'execd'
       image_tag:
@@ -20,6 +21,7 @@ on:
     tags:
       - 'docker/execd/**'
       - 'docker/code-interpreter/**'
+      - 'docker/ingress/**'
       - 'docker/egress/**'
 
 jobs:
@@ -79,6 +81,8 @@ jobs:
 
           if [ "$COMPONENT" == "execd" ]; then
             cd components/execd
+          elif [ "$COMPONENT" == "ingress" ]; then
+            cd components/ingress
           elif [ "$COMPONENT" == "egress" ]; then
             cd components/egress
           else
