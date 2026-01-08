@@ -51,9 +51,9 @@ endif
 OPERATOR_SDK_VERSION ?= v1.42.0
 # Image URL to use all building/pushing image targets
 # IMG defines the image for the controller manager.
-IMG ?= controller:latest
+IMG ?= controller:dev
 # TASK_EXECUTOR_IMG defines the image for the task-executor service.
-TASK_EXECUTOR_IMG ?= task-executor:latest
+TASK_EXECUTOR_IMG ?= task-executor:dev
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -122,6 +122,7 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 # To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
 KIND_CLUSTER ?= sandbox-k8s-test-e2e
+KIND_K8S_VERSION ?= v1.22.4
 GINKGO_ARGS ?=
 
 .PHONY: install-kind
@@ -140,8 +141,8 @@ setup-test-e2e: install-kind ## Set up a Kind cluster for e2e tests if it does n
 		*"$(KIND_CLUSTER)"*) \
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
-			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
+			echo "Creating Kind cluster '$(KIND_CLUSTER)' with Kubernetes version $(KIND_K8S_VERSION)..."; \
+			$(KIND) create cluster --name $(KIND_CLUSTER) --image kindest/node:$(KIND_K8S_VERSION) ;; \
 	esac
 
 .PHONY: test-e2e
