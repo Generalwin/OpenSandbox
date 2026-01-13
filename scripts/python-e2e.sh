@@ -19,9 +19,13 @@
 
 set -euxo pipefail
 
-# prepare required images
 TAG=${TAG:-latest}
-docker pull opensandbox/execd:${TAG}
+
+# build execd image locally
+cd components/execd && docker build -t opensandbox/execd:${TAG} .
+cd ../..
+
+# prepare required images from registry
 docker pull opensandbox/code-interpreter:${TAG}
 
 # setup server
