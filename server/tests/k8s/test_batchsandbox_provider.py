@@ -163,14 +163,15 @@ class TestBatchSandboxProvider:
         main_container = body["spec"]["template"]["spec"]["containers"][0]
         
         assert main_container["command"] == [
-            "/opt/opensandbox/execd/bootstrap.sh",
+            "/opt/opensandbox/bin/bootstrap.sh",
             "/usr/bin/python",
             "app.py"
         ]
     
     def test_create_workload_converts_env_to_list(self, mock_k8s_client):
         """
-        Test case: Verify environment variable dict converted to list
+        Test case: Verify environment variable dict converted to list.
+        Also verifies EXECD environment variable is automatically injected.
         """
         provider = BatchSandboxProvider(mock_k8s_client)
         mock_api = mock_k8s_client.get_custom_objects_api()
@@ -193,9 +194,13 @@ class TestBatchSandboxProvider:
         body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
         env_vars = body["spec"]["template"]["spec"]["containers"][0]["env"]
         
-        assert len(env_vars) == 2
+        # Should have user env vars plus EXECD
+        assert len(env_vars) == 3
         env_dict = {e["name"]: e["value"] for e in env_vars}
-        assert env_dict == {"FOO": "bar", "BAZ": "qux"}
+        assert env_dict["FOO"] == "bar"
+        assert env_dict["BAZ"] == "qux"
+        # Verify EXECD is automatically injected
+        assert env_dict["EXECD"] == "/opt/opensandbox/bin/execd"
     
     def test_create_workload_sets_resource_limits_and_requests(self, mock_k8s_client):
         """
@@ -622,3 +627,282 @@ class TestBatchSandboxProvider:
         result = provider.get_endpoint_info(workload, 8080)
         
         assert result is None
+
+    # ===== Pool-based Creation Tests =====
+    
+    def test_create_workload_poolref_ignores_image_spec(self, mock_k8s_client):
+        """
+        Test that pool-based creation ignores image_spec parameter.
+        
+        Pool already defines the image, so image_spec is not used even if provided.
+        This verifies backward compatibility - no error is raised.
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "sandbox-test-id", "uid": "test-uid"}
+        }
+        
+        result = provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(uri="python:3.11"),
+            entrypoint=["python", "app.py"],
+            env={},
+            resource_limits={},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:latest",
+            extensions={"poolRef": "my-pool"}
+        )
+        
+        # Should succeed and return workload info
+        assert result == {"name": "sandbox-test-id", "uid": "test-uid"}
+        
+        # Verify poolRef is used
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        assert body["spec"]["poolRef"] == "my-pool"
+    
+    def test_create_workload_poolref_ignores_resource_limits(self, mock_k8s_client):
+        """
+        Test that pool-based creation ignores resource_limits parameter.
+        
+        Pool already defines the resources, so resource_limits is not used even if provided.
+        This verifies backward compatibility - no error is raised.
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "sandbox-test-id", "uid": "test-uid"}
+        }
+        
+        result = provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(uri=""),
+            entrypoint=["python", "app.py"],
+            env={},
+            resource_limits={"cpu": "1", "memory": "1Gi"},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:latest",
+            extensions={"poolRef": "my-pool"}
+        )
+        
+        # Should succeed and return workload info
+        assert result == {"name": "sandbox-test-id", "uid": "test-uid"}
+        
+        # Verify poolRef is used
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        assert body["spec"]["poolRef"] == "my-pool"
+    
+    def test_create_workload_poolref_allows_entrypoint_and_env(self, mock_k8s_client):
+        """
+        Test that pool-based creation allows customizing entrypoint and env.
+        
+        Verifies taskTemplate structure is correctly generated with user's entrypoint and env.
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "sandbox-test-id", "uid": "test-uid"}
+        }
+        
+        result = provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(uri=""),
+            entrypoint=["python", "app.py"],
+            env={"FOO": "bar"},
+            resource_limits={},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:latest",
+            extensions={"poolRef": "my-pool"}
+        )
+        
+        assert result == {"name": "sandbox-test-id", "uid": "test-uid"}
+        
+        # Verify the call
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        assert body["spec"]["poolRef"] == "my-pool"
+        assert "taskTemplate" in body["spec"]
+        
+        # Verify taskTemplate structure
+        task_template = body["spec"]["taskTemplate"]
+        assert "spec" in task_template
+        assert "process" in task_template["spec"]
+        command = task_template["spec"]["process"]["command"]
+        assert command[0] == "/bin/sh"
+        assert command[1] == "-c"
+        # Command should contain bootstrap.sh execution
+        # Example: /opt/opensandbox/bin/bootstrap.sh python app.py &
+        assert "/opt/opensandbox/bin/bootstrap.sh python app.py" in command[2]
+        assert command[2].endswith(" &")
+        assert task_template["spec"]["process"]["env"] == [{"name": "FOO", "value": "bar"}]
+    
+    def test_build_task_template_with_env(self, mock_k8s_client):
+        """
+        Test _build_task_template with environment variables.
+        
+        Verifies:
+        - Command uses shell wrapper: /bin/sh -c "..."
+        - Entrypoint executed via bootstrap.sh in background (&)
+        - Env list formatted correctly for K8s
+        
+        Generated command example:
+        /bin/sh -c "/opt/opensandbox/bin/bootstrap.sh /usr/bin/python app.py &"
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        
+        result = provider._build_task_template(
+            entrypoint=["/usr/bin/python", "app.py"],
+            env={"KEY1": "value1", "KEY2": "value2"}
+        )
+        
+        assert "spec" in result
+        assert "process" in result["spec"]
+        process_task = result["spec"]["process"]
+        
+        # Verify command structure
+        command = process_task["command"]
+        assert command[0] == "/bin/sh"
+        assert command[1] == "-c"
+        # Should execute via bootstrap.sh in background (&)
+        assert "/opt/opensandbox/bin/bootstrap.sh" in command[2]
+        assert "/usr/bin/python" in command[2]
+        assert "app.py" in command[2]
+        # Should end with & (run in background)
+        assert command[2].endswith("&")
+        
+        # Verify env list
+        assert process_task["env"] == [
+            {"name": "KEY1", "value": "value1"},
+            {"name": "KEY2", "value": "value2"}
+        ]
+    
+    def test_build_task_template_without_env(self, mock_k8s_client):
+        """
+        Test _build_task_template without environment variables.
+        
+        Verifies command is wrapped in shell and executes via bootstrap.sh in background.
+        
+        Generated command example:
+        /bin/sh -c "/opt/opensandbox/bin/bootstrap.sh /usr/bin/python app.py &"
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        
+        result = provider._build_task_template(
+            entrypoint=["/usr/bin/python", "app.py"],
+            env={}
+        )
+        
+        assert "spec" in result
+        assert "process" in result["spec"]
+        process_task = result["spec"]["process"]
+        assert process_task["env"] == []
+        # Without env, command directly calls bootstrap.sh in background
+        command = process_task["command"]
+        assert command[0] == "/bin/sh"
+        assert command[1] == "-c"
+        # Check escaped entrypoint
+        assert "/opt/opensandbox/bin/bootstrap.sh" in command[2]
+        assert "/usr/bin/python" in command[2]
+        assert "app.py" in command[2]
+        assert command[2].endswith(" &")
+    
+    def test_build_task_template_uses_default_env_path(self, mock_k8s_client):
+        """
+        Test that taskTemplate executes bootstrap.sh properly.
+        
+        Verifies:
+        - Entrypoint is properly escaped
+        - Command runs in background
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        
+        result = provider._build_task_template(
+            entrypoint=["python", "app.py"],
+            env={"TEST_VAR": "test_value"}
+        )
+        
+        command = result["spec"]["process"]["command"][2]
+        # Should execute bootstrap.sh in background
+        assert "/opt/opensandbox/bin/bootstrap.sh" in command
+        assert "python" in command
+        assert "app.py" in command
+        assert command.endswith(" &")
+    
+    def test_build_task_template_escapes_special_characters(self, mock_k8s_client):
+        """
+        Test that taskTemplate properly escapes arguments with spaces, quotes, and special chars.
+        
+        This prevents shell injection and ensures arguments are preserved correctly.
+        For example: ['python', '-c', 'print("a b")'] should work correctly.
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        
+        result = provider._build_task_template(
+            entrypoint=["python", "-c", 'print("hello world")'],
+            env={"KEY": "value with spaces", "QUOTE": "it's fine"}
+        )
+        
+        command = result["spec"]["process"]["command"][2]
+        
+        # Verify entrypoint args are properly escaped
+        assert "python" in command
+        assert "-c" in command
+        # The python code with spaces and quotes should be properly escaped
+        assert "'print(" in command or '"print(' in command  # Escaped
+        
+        # Verify env is passed through env list, not in command
+        env_list = result["spec"]["process"]["env"]
+        assert {"name": "KEY", "value": "value with spaces"} in env_list
+        assert {"name": "QUOTE", "value": "it's fine"} in env_list
+    
+    def test_create_workload_poolref_builds_correct_manifest(self, mock_k8s_client):
+        """
+        Test complete pool-based BatchSandbox manifest structure.
+        
+        Verifies:
+        - Basic metadata (apiVersion, kind, name, labels)
+        - Pool-specific fields (poolRef, taskTemplate, expireTime)
+        - No template field (pool mode doesn't use pod template)
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "sandbox-test-id", "uid": "test-uid"}
+        }
+        
+        expires_at = datetime(2025, 12, 31, 10, 0, 0, tzinfo=timezone.utc)
+        
+        provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(uri=""),
+            entrypoint=["python", "app.py"],
+            env={"FOO": "bar"},
+            resource_limits={},
+            labels={"test": "label"},
+            expires_at=expires_at,
+            execd_image="execd:latest",
+            extensions={"poolRef": "test-pool"}
+        )
+        
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        
+        # Verify basic structure
+        assert body["apiVersion"] == "sandbox.opensandbox.io/v1alpha1"
+        assert body["kind"] == "BatchSandbox"
+        assert body["metadata"]["name"] == "sandbox-test-id"
+        assert body["metadata"]["labels"] == {"test": "label"}
+        
+        # Verify pool-specific fields
+        assert body["spec"]["replicas"] == 1
+        assert body["spec"]["poolRef"] == "test-pool"
+        assert body["spec"]["expireTime"] == "2025-12-31T10:00:00+00:00"
+        assert "taskTemplate" in body["spec"]
+        
+        # Verify no template field (pool-based doesn't use template)
+        assert "template" not in body["spec"]
