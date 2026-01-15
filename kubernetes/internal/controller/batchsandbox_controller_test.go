@@ -695,7 +695,6 @@ func TestBatchSandboxReconciler_scheduleTasks(t *testing.T) {
 	}
 }
 
-
 func Test_parseIndex(t *testing.T) {
 	type args struct {
 		pod *corev1.Pod

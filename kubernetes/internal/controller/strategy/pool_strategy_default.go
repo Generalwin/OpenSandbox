@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package strategy
 
 import (
 	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
-	api "github.com/alibaba/OpenSandbox/sandbox-k8s/pkg/task-executor"
 )
 
-// TaskSchedulingStrategy defines the strategy interface for task scheduling.
-// Different implementations can provide custom logic for determining whether
-// task scheduling is needed and how to generate task specifications.
-type TaskSchedulingStrategy interface {
-	// NeedTaskScheduling determines whether the BatchSandbox requires task scheduling.
-	NeedTaskScheduling(batchSbx *sandboxv1alpha1.BatchSandbox) bool
+type DefaultPoolStrategy struct{}
 
-	// GenerateTaskSpecs generates the complete list of task specifications for the BatchSandbox.
-	GenerateTaskSpecs(batchSbx *sandboxv1alpha1.BatchSandbox) ([]*api.Task, error)
+func NewDefaultPoolStrategy() *DefaultPoolStrategy {
+	return &DefaultPoolStrategy{}
+}
+
+func (s *DefaultPoolStrategy) IsPooledMode(batchSbx *sandboxv1alpha1.BatchSandbox) bool {
+	return batchSbx.Spec.PoolRef != ""
 }

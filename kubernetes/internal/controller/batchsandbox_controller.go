@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
+	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/controller/strategy"
 	taskscheduler "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/scheduler"
 	"github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils"
 	controllerutils "github.com/alibaba/OpenSandbox/sandbox-k8s/internal/utils/controller"
@@ -113,9 +114,15 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// task schedule
+	taskStrategy := strategy.NewTaskSchedulingStrategy(batchSbx)
+
+	// pool strategy
+	poolStrategy := strategy.NewPoolStrategy(batchSbx)
+
 	// handle finalizers
 	if batchSbx.DeletionTimestamp == nil {
-		if batchSbx.Spec.TaskTemplate != nil {
+		if taskStrategy.NeedTaskScheduling(batchSbx) {
 			if !controllerutil.ContainsFinalizer(batchSbx, FinalizerTaskCleanup) {
 				err := utils.UpdateFinalizer(r.Client, batchSbx, utils.AddFinalizerOpType, FinalizerTaskCleanup)
 				if err != nil {
@@ -127,7 +134,7 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 	} else {
-		if batchSbx.Spec.TaskTemplate == nil {
+		if !taskStrategy.NeedTaskScheduling(batchSbx) {
 			return ctrl.Result{}, nil
 		}
 	}
@@ -145,7 +152,7 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		utils.PodNameSorter,
 	}).Sort)
 	// Normal Mode need scale Pods
-	if batchSbx.Spec.Template != nil {
+	if !poolStrategy.IsPooledMode(batchSbx) {
 		err := r.scaleBatchSandbox(ctx, batchSbx, batchSbx.Spec.Template, pods)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to scale batch sandbox %w", err)
@@ -191,8 +198,6 @@ func (r *BatchSandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// task schedule
-	taskStrategy := NewTaskSchedulingStrategy(batchSbx)
 	if taskStrategy.NeedTaskScheduling(batchSbx) {
 		// Because tasks are in-memory and there is no event mechanism, periodic reconciliation is required.
 		DurationStore.Push(types.NamespacedName{Namespace: batchSbx.Namespace, Name: batchSbx.Name}.String(), 3*time.Second)
@@ -321,7 +326,7 @@ func (r *BatchSandboxReconciler) getTaskScheduler(batchSbx *sandboxv1alpha1.Batc
 		if batchSbx.Spec.TaskResourcePolicyWhenCompleted != nil {
 			policy = *batchSbx.Spec.TaskResourcePolicyWhenCompleted
 		}
-		taskStrategy := NewTaskSchedulingStrategy(batchSbx)
+		taskStrategy := strategy.NewTaskSchedulingStrategy(batchSbx)
 		taskSpecs, err := taskStrategy.GenerateTaskSpecs(batchSbx)
 		if err != nil {
 			return nil, err

@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package strategy
 
 import (
 	sandboxv1alpha1 "github.com/alibaba/OpenSandbox/sandbox-k8s/api/v1alpha1"
 )
 
-// NewTaskSchedulingStrategy creates a task scheduling strategy based on BatchSandbox properties.
-// This function is designed to be easily customizable for different implementations:
-func NewTaskSchedulingStrategy(batchSbx *sandboxv1alpha1.BatchSandbox) TaskSchedulingStrategy {
-	return NewDefaultTaskSchedulingStrategy()
+func NewPoolStrategy(batchSbx *sandboxv1alpha1.BatchSandbox) PoolStrategy {
+	return NewDefaultPoolStrategy()
 }
