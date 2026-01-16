@@ -17,12 +17,13 @@ package controller
 import (
 	"context"
 	"io"
+	"net/http"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter/execute"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/runtime"
 	"github.com/alibaba/opensandbox/execd/pkg/util/safego"
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
@@ -36,9 +37,11 @@ var sseHeaders = map[string]string{
 }
 
 func (c *basicController) setupSSEResponse() {
-	c.EnableRender = false
 	for key, value := range sseHeaders {
-		c.Ctx.ResponseWriter.Header().Set(key, value)
+		c.ctx.Writer.Header().Set(key, value)
+	}
+	if flusher, ok := c.ctx.Writer.(http.Flusher); ok {
+		flusher.Flush()
 	}
 }
 
@@ -149,32 +152,36 @@ func (c *CodeInterpretingController) setServerEventsHandler(ctx context.Context)
 
 // writeSingleEvent serializes one SSE frame.
 func (c *CodeInterpretingController) writeSingleEvent(handler string, data []byte, verbose bool) {
-	if c == nil || c.Ctx == nil || c.Ctx.ResponseWriter == nil {
+	if c == nil || c.ctx == nil || c.ctx.Writer == nil {
 		return
 	}
 
 	select {
-	case <-c.Ctx.Request.Context().Done():
-		logs.Error("StreamEvent.%s: client disconnected", handler)
+	case <-c.ctx.Request.Context().Done():
+		log.Error("StreamEvent.%s: client disconnected", handler)
 		return
 	default:
 	}
 
 	c.chunkWriter.Lock()
 	defer c.chunkWriter.Unlock()
-	defer c.Ctx.ResponseWriter.Flush()
+	defer func() {
+		if flusher, ok := c.ctx.Writer.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}()
 
 	payload := append(data, '\n', '\n')
-	n, err := c.Ctx.ResponseWriter.Write(payload)
+	n, err := c.ctx.Writer.Write(payload)
 	if err == nil && n != len(payload) {
 		err = io.ErrShortWrite
 	}
 
 	if err != nil {
-		logs.Error("StreamEvent.%s write data %s error: %v", handler, string(data), err)
+		log.Error("StreamEvent.%s write data %s error: %v", handler, string(data), err)
 	} else {
 		if verbose {
-			logs.Info("StreamEvent.%s write data %s", handler, string(data))
+			log.Info("StreamEvent.%s write data %s", handler, string(data))
 		}
 	}
 }
@@ -182,7 +189,7 @@ func (c *CodeInterpretingController) writeSingleEvent(handler string, data []byt
 // ping periodically keeps the SSE connection alive.
 func (c *CodeInterpretingController) ping(ctx context.Context) {
 	wait.Until(func() {
-		if c.Ctx.ResponseWriter == nil {
+		if c.ctx.Writer == nil {
 			return
 		}
 		payload := model.ServerStreamEvent{

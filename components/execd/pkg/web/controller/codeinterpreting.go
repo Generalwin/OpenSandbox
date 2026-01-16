@@ -16,12 +16,13 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/alibaba/opensandbox/execd/pkg/flag"
 	"github.com/alibaba/opensandbox/execd/pkg/runtime"
@@ -36,16 +37,22 @@ func InitCodeRunner() {
 
 // CodeInterpretingController handles code execution entrypoints.
 type CodeInterpretingController struct {
-	basicController
+	*basicController
 
 	// chunkWriter serializes SSE event writes to prevent interleaved output.
 	chunkWriter sync.Mutex
 }
 
+func NewCodeInterpretingController(ctx *gin.Context) *CodeInterpretingController {
+	return &CodeInterpretingController{
+		basicController: newBasicController(ctx),
+	}
+}
+
 // CreateContext creates a new code execution context.
 func (c *CodeInterpretingController) CreateContext() {
 	var request model.CodeContextRequest
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,
@@ -82,7 +89,7 @@ func (c *CodeInterpretingController) InterruptCode() {
 // RunCode executes code in a context and streams output via SSE.
 func (c *CodeInterpretingController) RunCode() {
 	var request model.RunCodeRequest
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,
@@ -123,7 +130,7 @@ func (c *CodeInterpretingController) RunCode() {
 
 // GetContext returns a specific code context by id.
 func (c *CodeInterpretingController) GetContext() {
-	contextID := c.Ctx.Input.Param(":contextId")
+	contextID := c.ctx.Param("contextId")
 	if contextID == "" {
 		c.RespondError(
 			http.StatusBadRequest,
@@ -138,7 +145,7 @@ func (c *CodeInterpretingController) GetContext() {
 
 // ListContexts returns active code contexts, optionally filtered by language.
 func (c *CodeInterpretingController) ListContexts() {
-	language := c.GetString("language")
+	language := c.ctx.Query("language")
 
 	contexts, err := codeRunner.ListContext(language)
 	if err != nil {
@@ -155,7 +162,7 @@ func (c *CodeInterpretingController) ListContexts() {
 
 // DeleteContextsByLanguage deletes all contexts for a given language.
 func (c *CodeInterpretingController) DeleteContextsByLanguage() {
-	language := c.GetString("language")
+	language := c.ctx.Query("language")
 	if language == "" {
 		c.RespondError(
 			http.StatusBadRequest,
@@ -180,7 +187,7 @@ func (c *CodeInterpretingController) DeleteContextsByLanguage() {
 
 // DeleteContext deletes a specific code context by id.
 func (c *CodeInterpretingController) DeleteContext() {
-	contextID := c.Ctx.Input.Param(":contextId")
+	contextID := c.ctx.Param("contextId")
 	if contextID == "" {
 		c.RespondError(
 			http.StatusBadRequest,
@@ -228,7 +235,7 @@ func (c *CodeInterpretingController) buildExecuteCodeRequest(request model.RunCo
 }
 
 func (c *CodeInterpretingController) interrupt() {
-	session := c.GetString("id")
+	session := c.ctx.Query("id")
 	if session == "" {
 		c.RespondError(
 			http.StatusBadRequest,

@@ -19,7 +19,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/beego/beego/v2/core/logs"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 // loadExtraEnvFromFile reads key=value lines from EXECD_ENVS (if set).
@@ -32,7 +32,7 @@ func loadExtraEnvFromFile() map[string]string {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		logs.Warn("EXECD_ENVS: failed to read file %s: %v", path, err)
+		log.Warn("EXECD_ENVS: failed to read file %s: %v", path, err)
 		return nil
 	}
 
@@ -45,7 +45,7 @@ func loadExtraEnvFromFile() map[string]string {
 		}
 		kv := strings.SplitN(line, "=", 2)
 		if len(kv) != 2 {
-			logs.Warn("EXECD_ENVS: skip malformed line: %s", line)
+			log.Warn("EXECD_ENVS: skip malformed line: %s", line)
 			continue
 		}
 		envs[kv[0]] = os.ExpandEnv(kv[1])

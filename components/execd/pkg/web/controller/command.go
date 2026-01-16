@@ -16,7 +16,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -30,7 +29,7 @@ import (
 // RunCommand executes a shell command and streams the output via SSE.
 func (c *CodeInterpretingController) RunCommand() {
 	var request model.RunCommandRequest
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,
@@ -77,7 +76,7 @@ func (c *CodeInterpretingController) InterruptCommand() {
 
 // GetCommandStatus returns command status by id.
 func (c *CodeInterpretingController) GetCommandStatus() {
-	commandID := c.Ctx.Input.Param(":id")
+	commandID := c.ctx.Param("id")
 	if commandID == "" {
 		c.RespondError(http.StatusBadRequest, model.ErrorCodeInvalidRequest, "missing command execution id")
 		return
@@ -108,23 +107,22 @@ func (c *CodeInterpretingController) GetCommandStatus() {
 
 // GetBackgroundCommandOutput returns accumulated stdout/stderr for a command session as plain text.
 func (c *CodeInterpretingController) GetBackgroundCommandOutput() {
-	id := c.Ctx.Input.Param(":id")
+	id := c.ctx.Param("id")
 	if id == "" {
 		c.RespondError(http.StatusBadRequest, model.ErrorCodeMissingQuery, "missing command execution id")
 		return
 	}
 
-	cursor := c.QueryInt64(c.Ctx.Input.Query("cursor"), 0)
+	cursor := c.QueryInt64(c.ctx.Query("cursor"), 0)
 	output, lastCursor, err := codeRunner.SeekBackgroundCommandOutput(id, cursor)
 	if err != nil {
 		c.RespondError(http.StatusBadRequest, model.ErrorCodeInvalidRequest, err.Error())
 		return
 	}
 
-	c.Ctx.Output.Header("EXECD-COMMANDS-TAIL-CURSOR", strconv.FormatInt(lastCursor, 10))
-	c.Ctx.Output.Header("Content-Type", "text/plain; charset=utf-8")
-	c.Ctx.Output.SetStatus(http.StatusOK)
-	_ = c.Ctx.Output.Body(output)
+	c.ctx.Header("EXECD-COMMANDS-TAIL-CURSOR", strconv.FormatInt(lastCursor, 10))
+	c.ctx.Header("Content-Type", "text/plain; charset=utf-8")
+	c.ctx.String(http.StatusOK, "%s", output)
 }
 
 func (c *CodeInterpretingController) buildExecuteCommandRequest(request model.RunCommandRequest) *runtime.ExecuteCodeRequest {

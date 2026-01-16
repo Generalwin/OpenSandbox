@@ -16,12 +16,12 @@ package flag
 
 import (
 	"flag"
-	"log"
+	stdlog "log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 const (
@@ -41,7 +41,7 @@ func InitFlags() {
 	// First, set default values from environment variables
 	if jupyterFromEnv := os.Getenv(jupyterHostEnv); jupyterFromEnv != "" {
 		if !strings.HasPrefix(jupyterFromEnv, "http://") && !strings.HasPrefix(jupyterFromEnv, "https://") {
-			log.Panic("Invalid JUPYTER_HOST format: must start with http:// or https://")
+			stdlog.Panic("Invalid JUPYTER_HOST format: must start with http:// or https://")
 		}
 		JupyterServerHost = jupyterFromEnv
 	}
@@ -71,6 +71,6 @@ func InitFlags() {
 	flag.Parse()
 
 	// Log final values
-	logs.Info("Jupyter server host is: %s", JupyterServerHost)
-	logs.Info("Jupyter server token is: %s", JupyterServerToken)
+	log.Info("Jupyter server host is: %s", JupyterServerHost)
+	log.Info("Jupyter server token is: %s", JupyterServerToken)
 }

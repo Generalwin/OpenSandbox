@@ -23,12 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
 	"github.com/google/uuid"
 
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter/execute"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 // QueryResult represents a SQL query response.
@@ -44,14 +44,14 @@ func (c *Controller) runSQL(ctx context.Context, request *ExecuteCodeRequest) er
 	err := c.initDB()
 	if err != nil {
 		request.Hooks.OnExecuteError(&execute.ErrorOutput{EName: "DBInitError", EValue: err.Error()})
-		logs.Error("DBInitError: error initializing db server: %v", err)
+		log.Error("DBInitError: error initializing db server: %v", err)
 		return err
 	}
 
 	err = c.db.PingContext(ctx)
 	if err != nil {
 		request.Hooks.OnExecuteError(&execute.ErrorOutput{EName: "DBPingError", EValue: err.Error()})
-		logs.Error("DBPingError: error pinging db server: %v", err)
+		log.Error("DBPingError: error pinging db server: %v", err)
 		return err
 	}
 

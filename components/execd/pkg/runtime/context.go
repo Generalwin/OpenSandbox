@@ -22,12 +22,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/beego/beego/v2/core/logs"
 	"github.com/google/uuid"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter"
 	jupytersession "github.com/alibaba/opensandbox/execd/pkg/jupyter/session"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 // CreateContext provisions a kernel-backed session and returns its ID.
@@ -39,7 +39,7 @@ func (c *Controller) CreateContext(req *CreateContextRequest) (string, error) {
 	)
 
 	err = retry.OnError(kernelWaitingBackoff, func(err error) bool {
-		logs.Error("failed to create session, retrying: %v", err)
+		log.Error("failed to create session, retrying: %v", err)
 		return err != nil
 	}, func() error {
 		client, session, err = c.createContext(*req)
@@ -151,7 +151,7 @@ func (c *Controller) createDefaultLanguageContext(language Language) error {
 		err     error
 	)
 	err = retry.OnError(kernelWaitingBackoff, func(err error) bool {
-		logs.Error("failed to create context, retrying: %v", err)
+		log.Error("failed to create context, retrying: %v", err)
 		return err != nil
 	}, func() error {
 		client, session, err = c.createContext(CreateContextRequest{

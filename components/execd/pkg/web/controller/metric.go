@@ -21,16 +21,21 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
+	"github.com/gin-gonic/gin"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
 
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 // MetricController handles system metrics requests
 type MetricController struct {
-	basicController
+	*basicController
+}
+
+func NewMetricController(ctx *gin.Context) *MetricController {
+	return &MetricController{basicController: newBasicController(ctx)}
 }
 
 // GetMetrics returns current system metrics
@@ -54,25 +59,27 @@ func (c *MetricController) WatchMetrics() {
 
 	for {
 		select {
-		case <-c.Ctx.Request.Context().Done():
+		case <-c.ctx.Request.Context().Done():
 			return
 		case <-time.After(time.Second * 1):
 			func() {
-				defer c.Ctx.ResponseWriter.Flush()
+				if flusher, ok := c.ctx.Writer.(http.Flusher); ok {
+					defer flusher.Flush()
+				}
 				metrics, err := c.readMetrics()
 				if err != nil {
 					msg, _ := json.Marshal(map[string]string{ //nolint:errchkjson
 						"error": err.Error(),
 					})
-					_, err = c.Ctx.ResponseWriter.Write(append(msg, '\n'))
+					_, err = c.ctx.Writer.Write(append(msg, '\n'))
 					if err != nil {
-						logs.Error("WatchMetrics write data %s error: %v", string(msg), err)
+						log.Error("WatchMetrics write data %s error: %v", string(msg), err)
 					}
 				} else {
 					msg, _ := json.Marshal(metrics) //nolint:errchkjson
-					_, err = c.Ctx.ResponseWriter.Write(append(msg, '\n'))
+					_, err = c.ctx.Writer.Write(append(msg, '\n'))
 					if err != nil {
-						logs.Error("WatchMetrics write data %s error: %v", string(msg), err)
+						log.Error("WatchMetrics write data %s error: %v", string(msg), err)
 					}
 				}
 			}()

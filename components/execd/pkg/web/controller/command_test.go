@@ -20,19 +20,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/beego/beego/v2/server/web/context"
-
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 func setupCommandController(method, path string) (*CodeInterpretingController, *httptest.ResponseRecorder) {
-	ctrl := &CodeInterpretingController{}
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(method, path, nil)
-	ctx := context.NewContext()
-	ctx.Reset(w, req)
-	ctrl.Init(ctx, "CodeInterpretingController", method, nil)
-	ctrl.Data = make(map[interface{}]interface{})
+	ctx, w := newTestContext(method, path, nil)
+	ctrl := NewCodeInterpretingController(ctx)
 	return ctrl, w
 }
 

@@ -29,9 +29,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
-
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter/execute"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/util/safego"
 )
 
@@ -52,7 +51,7 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 	stderrPath := c.stderrFileName(session)
 
 	startAt := time.Now()
-	logs.Info("received command: %v", request.Code)
+	log.Info("received command: %v", request.Code)
 	cmd := exec.CommandContext(ctx, "bash", "-c", request.Code)
 
 	cmd.Stdout = stdout
@@ -79,7 +78,7 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 	if err != nil {
 		request.Hooks.OnExecuteInit(session)
 		request.Hooks.OnExecuteError(&execute.ErrorOutput{EName: "CommandExecError", EValue: err.Error()})
-		logs.Error("CommandExecError: error starting commands: %v", err)
+		log.Error("CommandExecError: error starting commands: %v", err)
 		return nil
 	}
 
@@ -139,7 +138,7 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 			Traceback: traceback,
 		})
 
-		logs.Error("CommandExecError: error running commands: %v", err)
+		log.Error("CommandExecError: error running commands: %v", err)
 		c.markCommandFinished(session, eCode, err.Error())
 		return nil
 	}
@@ -167,7 +166,7 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 	defer signal.Reset()
 
 	startAt := time.Now()
-	logs.Info("received command: %v", request.Code)
+	log.Info("received command: %v", request.Code)
 	cmd := exec.CommandContext(context.Background(), "bash", "-c", request.Code)
 
 	cmd.Dir = request.Cwd
@@ -194,7 +193,7 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 		}
 
 		if err != nil {
-			logs.Error("CommandExecError: error starting commands: %v", err)
+			log.Error("CommandExecError: error starting commands: %v", err)
 			kernel.running = false
 			c.storeCommandKernel(session, kernel)
 			c.markCommandFinished(session, 255, err.Error())
@@ -207,7 +206,7 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 
 		err = cmd.Wait()
 		if err != nil {
-			logs.Error("CommandExecError: error running commands: %v", err)
+			log.Error("CommandExecError: error running commands: %v", err)
 			exitCode := 1
 			var exitError *exec.ExitError
 			if errors.As(err, &exitError) {

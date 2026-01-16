@@ -15,38 +15,40 @@
 package controller
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/beego/beego/v2/server/web"
+	"github.com/gin-gonic/gin"
 
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 type basicController struct {
-	web.Controller
+	ctx *gin.Context
+}
+
+func newBasicController(ctx *gin.Context) *basicController {
+	return &basicController{ctx: ctx}
 }
 
 func (c *basicController) RespondError(status int, code model.ErrorCode, message ...string) {
-	c.Ctx.Output.SetStatus(status)
-	c.Data["json"] = model.ErrorResponse{
-		Code: code,
-		Message: func() string {
-			if len(message) > 0 {
-				return message[0]
-			}
-			return ""
-		}(),
+	resp := model.ErrorResponse{
+		Code:    code,
+		Message: "",
 	}
-	_ = c.ServeJSON()
+	if len(message) > 0 {
+		resp.Message = message[0]
+	}
+	c.ctx.JSON(status, resp)
 }
 
 func (c *basicController) RespondSuccess(data any) {
-	c.Ctx.Output.SetStatus(http.StatusOK)
-	if data != nil {
-		c.Data["json"] = data
+	if data == nil {
+		c.ctx.Status(http.StatusOK)
+		return
 	}
-	_ = c.ServeJSON()
+	c.ctx.JSON(http.StatusOK, data)
 }
 
 func (c *basicController) QueryInt64(query string, defaultValue int64) int64 {
@@ -55,4 +57,9 @@ func (c *basicController) QueryInt64(query string, defaultValue int64) int64 {
 		return defaultValue
 	}
 	return val
+}
+
+func (c *basicController) bindJSON(target any) error {
+	decoder := json.NewDecoder(c.ctx.Request.Body)
+	return decoder.Decode(target)
 }

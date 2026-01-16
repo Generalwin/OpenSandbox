@@ -20,19 +20,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/beego/beego/v2/server/web/context"
-
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 func TestBasicControllerRespondSuccess(t *testing.T) {
-	ctrl := &basicController{}
-	rec := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/", nil)
-	ctx := context.NewContext()
-	ctx.Reset(rec, req)
-	ctrl.Init(ctx, "basicController", "", nil)
-	ctrl.Data = make(map[interface{}]interface{})
+	ctx, rec := newTestContext(http.MethodGet, "/", nil)
+	ctrl := &basicController{ctx: ctx}
 
 	payload := map[string]string{"status": "ok"}
 	ctrl.RespondSuccess(payload)
@@ -50,13 +43,8 @@ func TestBasicControllerRespondSuccess(t *testing.T) {
 }
 
 func TestBasicControllerRespondError(t *testing.T) {
-	ctrl := &basicController{}
-	rec := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/", nil)
-	ctx := context.NewContext()
-	ctx.Reset(rec, req)
-	ctrl.Init(ctx, "basicController", "", nil)
-	ctrl.Data = make(map[interface{}]interface{})
+	ctx, rec := newTestContext(http.MethodGet, "/", nil)
+	ctrl := &basicController{ctx: ctx}
 
 	ctrl.RespondError(http.StatusBadRequest, model.ErrorCodeInvalidRequest, "boom")
 
@@ -73,13 +61,8 @@ func TestBasicControllerRespondError(t *testing.T) {
 }
 
 func setupBasicController(method string) (*basicController, *httptest.ResponseRecorder) {
-	ctrl := &basicController{}
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(method, "/", nil)
-	ctx := context.NewContext()
-	ctx.Reset(w, req)
-	ctrl.Init(ctx, "BasicController", method, nil)
-	ctrl.Data = make(map[interface{}]interface{})
+	ctx, w := newTestContext(method, "/", nil)
+	ctrl := &basicController{ctx: ctx}
 	return ctrl, w
 }
 

@@ -17,84 +17,108 @@ package web
 import (
 	"net/http"
 
-	"github.com/beego/beego/v2/core/logs"
-	"github.com/beego/beego/v2/server/web"
-	"github.com/beego/beego/v2/server/web/context"
+	"github.com/gin-gonic/gin"
 
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/web/controller"
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
-var accessToken string
+// NewRouter builds a Gin engine with all execd routes.
+func NewRouter(accessToken string) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(logMiddleware(), accessTokenMiddleware(accessToken), ProxyMiddleware())
 
-// SetAccessToken configures the API token.
-func SetAccessToken(token string) {
-	accessToken = token
-}
+	r.GET("/ping", controller.PingHandler)
 
-// AccessTokenFilter enforces a static token check.
-func AccessTokenFilter(ctx *context.Context) {
-	if accessToken == "" {
-		return
+	files := r.Group("/files")
+	{
+		files.DELETE("", withFilesystem(func(c *controller.FilesystemController) { c.RemoveFiles() }))
+		files.GET("/info", withFilesystem(func(c *controller.FilesystemController) { c.GetFilesInfo() }))
+		files.POST("/mv", withFilesystem(func(c *controller.FilesystemController) { c.RenameFiles() }))
+		files.POST("/permissions", withFilesystem(func(c *controller.FilesystemController) { c.ChmodFiles() }))
+		files.GET("/search", withFilesystem(func(c *controller.FilesystemController) { c.SearchFiles() }))
+		files.POST("/replace", withFilesystem(func(c *controller.FilesystemController) { c.ReplaceContent() }))
+		files.POST("/upload", withFilesystem(func(c *controller.FilesystemController) { c.UploadFile() }))
+		files.GET("/download", withFilesystem(func(c *controller.FilesystemController) { c.DownloadFile() }))
 	}
 
-	requestedToken := ctx.Input.Header(model.ApiAccessTokenHeader)
-	if requestedToken == "" || requestedToken != accessToken {
-		ctx.Output.SetStatus(http.StatusUnauthorized)
-		_ = ctx.Output.JSON(map[string]any{
-			"error": "Unauthorized: invalid or missing header " + model.ApiAccessTokenHeader,
-		}, true, false)
+	directories := r.Group("/directories")
+	{
+		directories.POST("", withFilesystem(func(c *controller.FilesystemController) { c.MakeDirs() }))
+		directories.DELETE("", withFilesystem(func(c *controller.FilesystemController) { c.RemoveDirs() }))
+	}
+
+	code := r.Group("/code")
+	{
+		code.POST("", withCode(func(c *controller.CodeInterpretingController) { c.RunCode() }))
+		code.DELETE("", withCode(func(c *controller.CodeInterpretingController) { c.InterruptCode() }))
+		code.POST("/context", withCode(func(c *controller.CodeInterpretingController) { c.CreateContext() }))
+		code.GET("/contexts", withCode(func(c *controller.CodeInterpretingController) { c.ListContexts() }))
+		code.DELETE("/contexts", withCode(func(c *controller.CodeInterpretingController) { c.DeleteContextsByLanguage() }))
+		code.DELETE("/contexts/:contextId", withCode(func(c *controller.CodeInterpretingController) { c.DeleteContext() }))
+		code.GET("/contexts/:contextId", withCode(func(c *controller.CodeInterpretingController) { c.GetContext() }))
+	}
+
+	command := r.Group("/command")
+	{
+		command.POST("", withCode(func(c *controller.CodeInterpretingController) { c.RunCommand() }))
+		command.DELETE("", withCode(func(c *controller.CodeInterpretingController) { c.InterruptCommand() }))
+		command.GET("/status/:id", withCode(func(c *controller.CodeInterpretingController) { c.GetCommandStatus() }))
+		command.GET("/:id/logs", withCode(func(c *controller.CodeInterpretingController) { c.GetBackgroundCommandOutput() }))
+	}
+
+	metric := r.Group("/metrics")
+	{
+		metric.GET("", withMetric(func(c *controller.MetricController) { c.GetMetrics() }))
+		metric.GET("/watch", withMetric(func(c *controller.MetricController) { c.WatchMetrics() }))
+	}
+
+	return r
+}
+
+func withFilesystem(fn func(*controller.FilesystemController)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		fn(controller.NewFilesystemController(ctx))
 	}
 }
 
-// LogFilter logs incoming HTTP requests.
-func LogFilter(ctx *context.Context) {
-	logs.Info("Requested: %v - %v", ctx.Request.Method, ctx.Request.URL.String())
+func withCode(fn func(*controller.CodeInterpretingController)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		fn(controller.NewCodeInterpretingController(ctx))
+	}
 }
 
-func init() {
-	web.Router("/ping", &controller.MainController{}, "get:Ping")
+func withMetric(fn func(*controller.MetricController)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		fn(controller.NewMetricController(ctx))
+	}
+}
 
-	files := web.NewNamespace("/files",
-		web.NSRouter("", &controller.FilesystemController{}, "delete:RemoveFiles"),
-		web.NSRouter("/info", &controller.FilesystemController{}, "get:GetFilesInfo"),
-		web.NSRouter("/mv", &controller.FilesystemController{}, "post:RenameFiles"),
-		web.NSRouter("/permissions", &controller.FilesystemController{}, "post:ChmodFiles"),
-		web.NSRouter("/search", &controller.FilesystemController{}, "get:SearchFiles"),
-		web.NSRouter("/replace", &controller.FilesystemController{}, "post:ReplaceContent"),
-		web.NSRouter("/upload", &controller.FilesystemController{}, "post:UploadFile"),
-		web.NSRouter("/download", &controller.FilesystemController{}, "get:DownloadFile"),
-	)
+func accessTokenMiddleware(token string) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if token == "" {
+			ctx.Next()
+			return
+		}
 
-	directories := web.NewNamespace("/directories",
-		web.NSRouter("", &controller.FilesystemController{}, "post:MakeDirs;delete:RemoveDirs"),
-	)
+		requestedToken := ctx.GetHeader(model.ApiAccessTokenHeader)
+		if requestedToken == "" || requestedToken != token {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, map[string]any{
+				"error": "Unauthorized: invalid or missing header " + model.ApiAccessTokenHeader,
+			})
+			return
+		}
 
-	codeInterpreting := web.NewNamespace("/code",
-		web.NSRouter("", &controller.CodeInterpretingController{}, "post:RunCode;delete:InterruptCode"),
-		web.NSRouter("/context", &controller.CodeInterpretingController{}, "post:CreateContext"),
-		web.NSRouter("/contexts", &controller.CodeInterpretingController{}, "get:ListContexts;delete:DeleteContextsByLanguage"),
-		web.NSRouter("/contexts/:contextId", &controller.CodeInterpretingController{}, "delete:DeleteContext"),
-		web.NSRouter("/contexts/:contextId", &controller.CodeInterpretingController{}, "get:GetContext"),
-	)
+		ctx.Next()
+	}
+}
 
-	command := web.NewNamespace("/command",
-		web.NSRouter("", &controller.CodeInterpretingController{}, "post:RunCommand;delete:InterruptCommand"),
-		web.NSRouter("/status/:id", &controller.CodeInterpretingController{}, "get:GetCommandStatus"),
-		web.NSRouter("/:id/logs", &controller.CodeInterpretingController{}, "get:GetBackgroundCommandOutput"),
-	)
-
-	metric := web.NewNamespace("metrics",
-		web.NSRouter("", &controller.MetricController{}, "get:GetMetrics"),
-		web.NSRouter("/watch", &controller.MetricController{}, "get:WatchMetrics"),
-	)
-
-	web.AddNamespace(files)
-	web.AddNamespace(directories)
-	web.AddNamespace(codeInterpreting)
-	web.AddNamespace(command)
-	web.AddNamespace(metric)
-
-	web.InsertFilter("/*", web.BeforeRouter, AccessTokenFilter)
-	web.InsertFilter("/*", web.BeforeRouter, LogFilter)
+func logMiddleware() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		log.Info("Requested: %v - %v", ctx.Request.Method, ctx.Request.URL.String())
+		ctx.Next()
+	}
 }

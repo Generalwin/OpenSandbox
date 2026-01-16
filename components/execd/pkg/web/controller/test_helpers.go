@@ -14,23 +14,19 @@
 
 package controller
 
-import "github.com/gin-gonic/gin"
+import (
+	"bytes"
+	"net/http/httptest"
 
-// MainController handles basic server operations.
-type MainController struct {
-	*basicController
-}
+	"github.com/gin-gonic/gin"
+)
 
-func NewMainController(ctx *gin.Context) *MainController {
-	return &MainController{basicController: newBasicController(ctx)}
-}
-
-// Ping checks if the server is alive.
-func (c *MainController) Ping() {
-	c.RespondSuccess(nil)
-}
-
-// PingHandler is the Gin adapter.
-func PingHandler(ctx *gin.Context) {
-	NewMainController(ctx).Ping()
+// nolint:unused
+func newTestContext(method, path string, body []byte) (*gin.Context, *httptest.ResponseRecorder) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	ctx.Request = req
+	return ctx, w
 }

@@ -26,9 +26,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
-
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter/execute"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/util/safego"
 )
 
@@ -43,7 +42,7 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 	}
 
 	startAt := time.Now()
-	logs.Info("received command: %v", request.Code)
+	log.Info("received command: %v", request.Code)
 	cmd := exec.CommandContext(ctx, "cmd", "/C", request.Code)
 
 	cmd.Stdout = stdout
@@ -62,7 +61,7 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 	err = cmd.Start()
 	if err != nil {
 		request.Hooks.OnExecuteError(&execute.ErrorOutput{EName: "CommandExecError", EValue: err.Error()})
-		logs.Error("CommandExecError: error starting commands: %v", err)
+		log.Error("CommandExecError: error starting commands: %v", err)
 		return nil
 	}
 
@@ -96,7 +95,7 @@ func (c *Controller) runCommand(ctx context.Context, request *ExecuteCodeRequest
 			Traceback: traceback,
 		})
 
-		logs.Error("CommandExecError: error running commands: %v", err)
+		log.Error("CommandExecError: error running commands: %v", err)
 		return nil
 	}
 	request.Hooks.OnExecuteComplete(time.Since(startAt))
@@ -116,7 +115,7 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 	stderrPath := c.combinedOutputFileName(session)
 
 	startAt := time.Now()
-	logs.Info("received command: %v", request.Code)
+	log.Info("received command: %v", request.Code)
 	cmd := exec.CommandContext(context.Background(), "cmd", "/C", request.Code)
 
 	cmd.Dir = request.Cwd
@@ -130,7 +129,7 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 	safego.Go(func() {
 		err := cmd.Start()
 		if err != nil {
-			logs.Error("CommandExecError: error starting commands: %v", err)
+			log.Error("CommandExecError: error starting commands: %v", err)
 			pipe.Close() // best-effort
 			return
 		}
@@ -151,7 +150,7 @@ func (c *Controller) runBackgroundCommand(_ context.Context, request *ExecuteCod
 		devNull.Close() // best-effort
 
 		if err != nil {
-			logs.Error("CommandExecError: error running commands: %v", err)
+			log.Error("CommandExecError: error running commands: %v", err)
 			exitCode := 1
 			var exitError *exec.ExitError
 			if errors.As(err, &exitError) {

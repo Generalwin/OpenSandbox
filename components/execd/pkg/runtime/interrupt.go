@@ -25,7 +25,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 // Interrupt stops execution in the specified session.
@@ -33,7 +33,7 @@ func (c *Controller) Interrupt(sessionID string) error {
 	switch {
 	case c.getJupyterKernel(sessionID) != nil:
 		kernel := c.getJupyterKernel(sessionID)
-		logs.Warning("Interrupting Jupyter kernel %s", kernel.kernelID)
+		log.Warning("Interrupting Jupyter kernel %s", kernel.kernelID)
 		return kernel.client.InterruptKernel(kernel.kernelID)
 	case c.getCommandKernel(sessionID) != nil:
 		kernel := c.getCommandKernel(sessionID)
@@ -49,13 +49,13 @@ func (c *Controller) killPid(pid int) error {
 	if err != nil {
 		return err
 	}
-	logs.Warning("Attempting to terminate process %d", pid)
+	log.Warning("Attempting to terminate process %d", pid)
 
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		if strings.Contains(err.Error(), "already finished") {
 			return nil
 		}
-		logs.Warning("SIGTERM failed for pid %d: %v, trying SIGKILL", pid, err)
+		log.Warning("SIGTERM failed for pid %d: %v, trying SIGKILL", pid, err)
 	} else {
 		done := make(chan error, 1)
 		go func() {
@@ -66,11 +66,11 @@ func (c *Controller) killPid(pid int) error {
 		select {
 		case err := <-done:
 			if err == nil {
-				logs.Info("Process %d terminated gracefully", pid)
+				log.Info("Process %d terminated gracefully", pid)
 				return nil
 			}
 		case <-time.After(3 * time.Second):
-			logs.Warning("Process %d did not terminate after SIGTERM, using SIGKILL", pid)
+			log.Warning("Process %d did not terminate after SIGTERM, using SIGKILL", pid)
 		}
 	}
 
@@ -85,7 +85,7 @@ func (c *Controller) killPid(pid int) error {
 		if err := process.Signal(syscall.Signal(0)); err != nil {
 			if strings.Contains(err.Error(), "already finished") ||
 				strings.Contains(err.Error(), "no such process") {
-				logs.Info("Process %d confirmed terminated", pid)
+				log.Info("Process %d confirmed terminated", pid)
 				return nil
 			}
 		}

@@ -18,10 +18,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/beego/beego/v2/core/logs"
-
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter"
 	"github.com/alibaba/opensandbox/execd/pkg/jupyter/execute"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 // runJupyter executes code through a Jupyter kernel.
@@ -114,10 +113,10 @@ func (c *Controller) runJupyterCode(ctx context.Context, kernel *jupyterKernel, 
 			}
 
 		case <-ctx.Done():
-			logs.Warning("context cancelled, try to interrupt kernel")
+			log.Warning("context cancelled, try to interrupt kernel")
 			err = kernel.client.InterruptKernel(kernel.kernelID)
 			if err != nil {
-				logs.Error("interrupt kernel failed: %v", err)
+				log.Error("interrupt kernel failed: %v", err)
 			}
 
 			request.Hooks.OnExecuteError(&execute.ErrorOutput{

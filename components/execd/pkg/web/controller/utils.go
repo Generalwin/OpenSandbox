@@ -27,8 +27,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/beego/beego/v2/core/logs"
-
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
@@ -81,11 +80,11 @@ func SetFileOwnership(absPath string, owner string, group string) error {
 	if owner != "" {
 		userInfo, err := user.Lookup(owner)
 		if err != nil {
-			logs.Warning("Failed to lookup user %s: %v", owner, err)
+			log.Warning("Failed to lookup user %s: %v", owner, err)
 		} else {
 			uid, err = strconv.Atoi(userInfo.Uid)
 			if err != nil {
-				logs.Warning("Failed to convert uid for user %s: %v", owner, err)
+				log.Warning("Failed to convert uid for user %s: %v", owner, err)
 				uid = -1
 			}
 		}
@@ -95,11 +94,11 @@ func SetFileOwnership(absPath string, owner string, group string) error {
 	if group != "" {
 		groupInfo, err := user.LookupGroup(group)
 		if err != nil {
-			logs.Warning("Failed to lookup group %s: %v", group, err)
+			log.Warning("Failed to lookup group %s: %v", group, err)
 		} else {
 			gid, err = strconv.Atoi(groupInfo.Gid)
 			if err != nil {
-				logs.Warning("Failed to convert gid for group %s: %v", group, err)
+				log.Warning("Failed to convert gid for group %s: %v", group, err)
 				gid = -1
 			}
 		}

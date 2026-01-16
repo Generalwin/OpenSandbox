@@ -18,7 +18,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,13 +25,19 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/alibaba/opensandbox/execd/pkg/util/glob"
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
-// FilesystemController handles file system operations
+// FilesystemController handles file system operations.
 type FilesystemController struct {
-	basicController
+	*basicController
+}
+
+func NewFilesystemController(ctx *gin.Context) *FilesystemController {
+	return &FilesystemController{basicController: newBasicController(ctx)}
 }
 
 func (c *FilesystemController) handleFileError(err error) {
@@ -53,7 +58,7 @@ func (c *FilesystemController) handleFileError(err error) {
 
 // GetFilesInfo retrieves metadata for specified file paths
 func (c *FilesystemController) GetFilesInfo() {
-	paths := c.GetStrings("path")
+	paths := c.ctx.QueryArray("path")
 	if len(paths) == 0 {
 		c.RespondSuccess(make(map[string]model.FileInfo))
 		return
@@ -74,7 +79,7 @@ func (c *FilesystemController) GetFilesInfo() {
 
 // RemoveFiles deletes specified files
 func (c *FilesystemController) RemoveFiles() {
-	paths := c.GetStrings("path")
+	paths := c.ctx.QueryArray("path")
 	for _, filePath := range paths {
 		if err := DeleteFile(filePath); err != nil {
 			c.RespondError(
@@ -92,7 +97,7 @@ func (c *FilesystemController) RemoveFiles() {
 // ChmodFiles changes file permissions for specified files
 func (c *FilesystemController) ChmodFiles() {
 	var request map[string]model.Permission
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,
@@ -119,7 +124,7 @@ func (c *FilesystemController) ChmodFiles() {
 // RenameFiles renames or moves files to new paths
 func (c *FilesystemController) RenameFiles() {
 	var request []model.RenameFileItem
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,
@@ -141,7 +146,7 @@ func (c *FilesystemController) RenameFiles() {
 // MakeDirs creates directories with specified permissions
 func (c *FilesystemController) MakeDirs() {
 	var request map[string]model.Permission
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,
@@ -162,7 +167,7 @@ func (c *FilesystemController) MakeDirs() {
 
 // RemoveDirs recursively removes directories
 func (c *FilesystemController) RemoveDirs() {
-	paths := c.GetStrings("path")
+	paths := c.ctx.QueryArray("path")
 	for _, dir := range paths {
 		if err := os.RemoveAll(dir); err != nil {
 			c.RespondError(
@@ -179,7 +184,7 @@ func (c *FilesystemController) RemoveDirs() {
 
 // SearchFiles searches for files matching a pattern in a directory
 func (c *FilesystemController) SearchFiles() {
-	path := c.GetString("path")
+	path := c.ctx.Query("path")
 	if path == "" {
 		c.RespondError(
 			http.StatusBadRequest,
@@ -205,7 +210,7 @@ func (c *FilesystemController) SearchFiles() {
 		return
 	}
 
-	pattern := c.GetString("pattern")
+	pattern := c.ctx.Query("pattern")
 	if pattern == "" {
 		pattern = "**"
 	}
@@ -263,7 +268,7 @@ func (c *FilesystemController) SearchFiles() {
 // ReplaceContent replaces text content in specified files
 func (c *FilesystemController) ReplaceContent() {
 	var request map[string]model.ReplaceFileContentItem
-	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+	if err := c.bindJSON(&request); err != nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidRequest,

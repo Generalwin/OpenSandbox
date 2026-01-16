@@ -16,7 +16,6 @@ package controller
 
 import (
 	"encoding/json"
-	"github.com/beego/beego/v2/server/web/context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,17 +27,8 @@ import (
 )
 
 func setupMetricController(method, path string) (*MetricController, *httptest.ResponseRecorder) {
-	r, _ := http.NewRequest(method, path, nil)
-	w := httptest.NewRecorder()
-
-	ctrl := &MetricController{}
-
-	ctx := context.NewContext()
-	ctx.Reset(w, r)
-
-	ctrl.Init(ctx, "MetricController", "GetMetrics", nil)
-	ctrl.Data = make(map[interface{}]interface{})
-
+	ctx, w := newTestContext(method, path, nil)
+	ctrl := NewMetricController(ctx)
 	return ctrl, w
 }
 
@@ -93,10 +83,7 @@ func TestGetMetricsEndpoint(t *testing.T) {
 func TestWatchMetricsHeaders(t *testing.T) {
 	ctrl, w := setupMetricController("GET", "/api/watch-metrics")
 
-	ctrl.Ctx.Output.Header("Content-Type", "text/event-stream")
-	ctrl.Ctx.Output.Header("Cache-Control", "no-cache")
-	ctrl.Ctx.Output.Header("Connection", "keep-alive")
-	ctrl.Ctx.Output.Header("X-Accel-Buffering", "no")
+	ctrl.setupSSEResponse()
 
 	contentType := w.Header().Get("Content-Type")
 	assert.Equal(t, "text/event-stream", contentType)

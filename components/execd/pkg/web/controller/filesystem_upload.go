@@ -22,15 +22,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/beego/beego/v2/core/logs"
-
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 // UploadFile uploads files with metadata to specified paths
 func (c *FilesystemController) UploadFile() {
-	form := c.Ctx.Request.MultipartForm
-	if form == nil {
+	form, err := c.ctx.MultipartForm()
+	if err != nil || form == nil {
 		c.RespondError(
 			http.StatusBadRequest,
 			model.ErrorCodeInvalidFile,
@@ -156,10 +155,10 @@ func (c *FilesystemController) UploadFile() {
 		}
 
 		if err := dst.Sync(); err != nil {
-			logs.Error("failed to sync target file: %v", err)
+			log.Error("failed to sync target file: %v", err)
 		}
 		if err := dst.Close(); err != nil {
-			logs.Error("failed to close target file: %v", err)
+			log.Error("failed to close target file: %v", err)
 		}
 		file.Close()
 

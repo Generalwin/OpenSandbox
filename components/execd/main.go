@@ -17,15 +17,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/beego/beego/v2/core/logs"
-	"github.com/beego/beego/v2/server/web"
-
 	_ "go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/alibaba/opensandbox/execd/pkg/flag"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 	_ "github.com/alibaba/opensandbox/execd/pkg/util/safego"
-	_ "github.com/alibaba/opensandbox/execd/pkg/web"
-	myweb "github.com/alibaba/opensandbox/execd/pkg/web"
+	"github.com/alibaba/opensandbox/execd/pkg/web"
 	"github.com/alibaba/opensandbox/execd/pkg/web/controller"
 )
 
@@ -33,21 +30,13 @@ import (
 func main() {
 	flag.InitFlags()
 
-	logs.SetLevel(flag.ServerLogLevel)
-	web.BConfig.Listen.HTTPPort = flag.ServerPort
-	myweb.SetAccessToken(flag.ServerAccessToken)
+	log.SetLevel(flag.ServerLogLevel)
 
 	controller.InitCodeRunner()
+	engine := web.NewRouter(flag.ServerAccessToken)
 	addr := fmt.Sprintf(":%d", flag.ServerPort)
-	logs.Info("execd listening on %s", addr)
-	web.RunWithMiddleWares(addr, myweb.ProxyMiddleware())
-}
-
-// init configures beego before main runs.
-func init() {
-	web.BConfig.CopyRequestBody = true
-	web.BConfig.RecoverPanic = true
-	web.BConfig.WebConfig.AutoRender = false
-	web.BConfig.WebConfig.Session.SessionOn = false
-	web.BConfig.RouterCaseSensitive = false
+	log.Info("execd listening on %s", addr)
+	if err := engine.Run(addr); err != nil {
+		log.Error("failed to start execd server: %v", err)
+	}
 }

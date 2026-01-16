@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/beego/beego/v2/core/logs"
+	"github.com/alibaba/opensandbox/execd/pkg/log"
 )
 
 // Interrupt stops execution in the specified session.
@@ -31,7 +31,7 @@ func (c *Controller) Interrupt(sessionID string) error {
 	switch {
 	case c.getJupyterKernel(sessionID) != nil:
 		kernel := c.getJupyterKernel(sessionID)
-		logs.Warning("Interrupting Jupyter kernel %s", kernel.kernelID)
+		log.Warning("Interrupting Jupyter kernel %s", kernel.kernelID)
 		return kernel.client.InterruptKernel(kernel.kernelID)
 	case c.getCommandKernel(sessionID) != nil:
 		kernel := c.getCommandKernel(sessionID)
@@ -47,7 +47,7 @@ func (c *Controller) killPid(pid int) error {
 	if err != nil {
 		return err
 	}
-	logs.Warning("Attempting to terminate process %d", pid)
+	log.Warning("Attempting to terminate process %d", pid)
 
 	if err := process.Kill(); err != nil {
 		return fmt.Errorf("failed to kill process %d: %w", pid, err)
@@ -63,7 +63,7 @@ func (c *Controller) killPid(pid int) error {
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):
-		logs.Warning("Process %d kill wait timed out", pid)
+		log.Warning("Process %d kill wait timed out", pid)
 	}
 
 	return nil

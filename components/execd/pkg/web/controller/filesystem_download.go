@@ -25,9 +25,9 @@ import (
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
-// DownloadFile serves a file for download with support for range requests
+// DownloadFile serves a file for download with support for range requests.
 func (c *FilesystemController) DownloadFile() {
-	filePath := c.GetString("path")
+	filePath := c.ctx.Query("path")
 	if filePath == "" {
 		c.RespondError(
 			http.StatusBadRequest,
@@ -54,11 +54,11 @@ func (c *FilesystemController) DownloadFile() {
 		return
 	}
 
-	c.Ctx.Output.Header("Content-Type", "application/octet-stream")
-	c.Ctx.Output.Header("Content-Disposition", "attachment; filename="+filepath.Base(filePath))
-	c.Ctx.Output.Header("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+	c.ctx.Header("Content-Type", "application/octet-stream")
+	c.ctx.Header("Content-Disposition", "attachment; filename="+filepath.Base(filePath))
+	c.ctx.Header("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
 
-	if rangeHeader := c.Ctx.Input.Header("Range"); rangeHeader != "" {
+	if rangeHeader := c.ctx.GetHeader("Range"); rangeHeader != "" {
 		ranges, err := ParseRange(rangeHeader, fileInfo.Size())
 		if err != nil {
 			c.RespondError(
@@ -69,15 +69,15 @@ func (c *FilesystemController) DownloadFile() {
 		}
 		if len(ranges) > 0 {
 			r := ranges[0]
-			c.Ctx.Output.SetStatus(http.StatusPartialContent)
-			c.Ctx.Output.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", r.start, r.start+r.length-1, fileInfo.Size()))
-			c.Ctx.Output.Header("Content-Length", strconv.FormatInt(r.length, 10))
+			c.ctx.Status(http.StatusPartialContent)
+			c.ctx.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", r.start, r.start+r.length-1, fileInfo.Size()))
+			c.ctx.Header("Content-Length", strconv.FormatInt(r.length, 10))
 
 			_, _ = file.Seek(r.start, io.SeekStart)
-			_, _ = io.CopyN(c.Ctx.ResponseWriter, file, r.length)
+			_, _ = io.CopyN(c.ctx.Writer, file, r.length)
 			return
 		}
 	}
 
-	http.ServeContent(c.Ctx.ResponseWriter, c.Ctx.Request, filepath.Base(filePath), fileInfo.ModTime(), file)
+	http.ServeContent(c.ctx.Writer, c.ctx.Request, filepath.Base(filePath), fileInfo.ModTime(), file)
 }

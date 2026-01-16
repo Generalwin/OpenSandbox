@@ -15,7 +15,6 @@
 package controller
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,26 +24,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/beego/beego/v2/server/web/context"
-
 	"github.com/alibaba/opensandbox/execd/pkg/web/model"
 )
 
 func newFilesystemController(t *testing.T, method, rawURL string, body []byte) (*FilesystemController, *httptest.ResponseRecorder) {
 	t.Helper()
-	ctrl := &FilesystemController{}
-	rec := httptest.NewRecorder()
-	req, err := http.NewRequest(method, rawURL, bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("failed to build request: %v", err)
-	}
-	ctx := context.NewContext()
-	ctx.Reset(rec, req)
-	if len(body) > 0 {
-		ctx.Input.RequestBody = body
-	}
-	ctrl.Init(ctx, "FilesystemController", "", nil)
-	ctrl.Data = make(map[interface{}]interface{})
+	ctx, rec := newTestContext(method, rawURL, body)
+	ctrl := NewFilesystemController(ctx)
 	return ctrl, rec
 }
 

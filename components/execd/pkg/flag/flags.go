@@ -26,7 +26,7 @@ var (
 	// ServerPort controls the HTTP listener port.
 	ServerPort int
 
-	// ServerLogLevel controls the beego log verbosity.
+	// ServerLogLevel controls the server log verbosity.
 	ServerLogLevel int
 
 	// ServerAccessToken guards API entrypoints when set.
