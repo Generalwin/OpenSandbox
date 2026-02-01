@@ -19,14 +19,17 @@ Unit tests for provider_factory.
 import pytest
 from unittest.mock import patch
 
+from src.config import AgentSandboxRuntimeConfig
 from src.services.k8s.provider_factory import (
     register_provider,
     create_workload_provider,
     list_available_providers,
     PROVIDER_TYPE_BATCHSANDBOX,
+    PROVIDER_TYPE_AGENT_SANDBOX,
 )
 from src.services.k8s.workload_provider import WorkloadProvider
 from src.services.k8s.batchsandbox_provider import BatchSandboxProvider
+from src.services.k8s.agent_sandbox_provider import AgentSandboxProvider
 
 
 
@@ -49,6 +52,48 @@ class TestProviderFactory:
         
         assert isinstance(provider, BatchSandboxProvider)
         assert provider.k8s_client == mock_k8s_client
+
+    def test_register_and_create_agent_sandbox_provider(
+        self,
+        mock_k8s_client,
+        agent_sandbox_runtime_config,
+        tmp_path,
+    ):
+        """
+        Test case: Register and create agent-sandbox provider
+
+        Purpose: Verify that AgentSandbox provider can be created through factory method
+        """
+        template_file = tmp_path / "agent_sandbox_template.yaml"
+        template_file.write_text(
+            """
+metadata:
+  annotations:
+    managed-by: opensandbox
+spec:
+  podTemplate:
+    spec:
+      nodeSelector:
+        workload: sandbox
+"""
+        )
+
+        agent_config = AgentSandboxRuntimeConfig(
+            template_file=str(template_file),
+            shutdown_policy="Retain",
+            ingress_enabled=True,
+        )
+        provider = create_workload_provider(
+            PROVIDER_TYPE_AGENT_SANDBOX,
+            mock_k8s_client,
+            agent_sandbox_runtime_config,
+            agent_config,
+        )
+
+        assert isinstance(provider, AgentSandboxProvider)
+        assert provider.k8s_client == mock_k8s_client
+        assert provider.shutdown_policy == "Retain"
+        assert provider.service_account == agent_sandbox_runtime_config.service_account
     
     def test_create_provider_case_insensitive(self, mock_k8s_client):
         """
@@ -122,9 +167,10 @@ spec:
         Purpose: Verify that list of all registered provider types can be retrieved
         """
         providers = list_available_providers()
-        
+
         assert isinstance(providers, list)
         assert PROVIDER_TYPE_BATCHSANDBOX in providers
+        assert PROVIDER_TYPE_AGENT_SANDBOX in providers
     
     def test_register_custom_provider(self, mock_k8s_client, isolated_registry):
         """

@@ -10,7 +10,7 @@ A production-grade, FastAPI-based service for managing the lifecycle of containe
 - **Lifecycle APIs**: Standardized REST interfaces for create, start, pause, resume, delete
 - **Pluggable runtimes**:
   - **Docker**: Production-ready
-  - **Kubernetes**: Configuration placeholder, under development
+  - **Kubernetes**: Supported (see `kubernetes/` for deployment)
 - **Automatic expiration**: Configurable TTL with renewal
 - **Access control**: API Key authentication (`OPEN-SANDBOX-API-KEY`); can be disabled for local/dev
 - **Networking modes**:
@@ -33,7 +33,7 @@ A production-grade, FastAPI-based service for managing the lifecycle of containe
 - **Package Manager**: [uv](https://github.com/astral-sh/uv) (recommended) or pip
 - **Runtime Backend**:
   - Docker Engine 20.10+ (for Docker runtime)
-  - Kubernetes 1.21+ (for Kubernetes runtime, when available)
+  - Kubernetes 1.21+ (for Kubernetes runtime)
 - **Operating System**: Linux, macOS, or Windows with WSL2
 
 ## Quick Start
@@ -77,7 +77,7 @@ cp example.batchsandbox-template.yaml ~/batchsandbox-template.yaml
 
    [runtime]
    type = "docker"
-   execd_image = "opensandbox/execd:v1.0.3"
+   execd_image = "opensandbox/execd:v1.0.5"
 
    [docker]
    network_mode = "host"  # Containers share host network; only one sandbox instance at a time
@@ -93,7 +93,7 @@ cp example.batchsandbox-template.yaml ~/batchsandbox-template.yaml
 
    [runtime]
    type = "docker"
-   execd_image = "opensandbox/execd:v1.0.3"
+   execd_image = "opensandbox/execd:v1.0.5"
 
    [docker]
    network_mode = "bridge"  # Isolated container networking
@@ -350,6 +350,14 @@ curl -X DELETE \
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `docker.network_mode` | string | `"host"` | Network mode (`"host"` or `"bridge"`) |
+
+### Agent-sandbox configuration
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `agent_sandbox.template_file` | string | `null` | Sandbox CR YAML template for agent-sandbox (used when `kubernetes.workload_provider = "agent-sandbox"`) |
+| `agent_sandbox.shutdown_policy` | string | `"Delete"` | Shutdown policy on expiry (`"Delete"` or `"Retain"`) |
+| `agent_sandbox.ingress_enabled` | boolean | `true` | Whether ingress routing is expected to be enabled |
 
 ### Environment variables
 

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2025 Alibaba Group Holding Ltd.
 #
@@ -30,7 +30,7 @@ if ! touch "$EXECD_ENVS" 2>/dev/null; then
 fi
 export EXECD_ENVS
 
-echo "starting OpenSandbox execd daemon at $EXECD"
+echo "starting OpenSandbox execd daemon at $EXECD with version v1.0.5. https://github.com/alibaba/OpenSandbox/releases/tag/docker%2Fexecd%2Fv1.0.5"
 $EXECD &
 
 # Allow chained shell commands (e.g., /test1.sh && /test2.sh)
@@ -47,11 +47,11 @@ fi
 
 set -x
 if [ "$CMD" != "" ]; then
-	exec /bin/sh -c "$CMD"
+	exec bash -c "$CMD"
 fi
 
 if [ $# -eq 0 ]; then
-	exec /bin/sh
+	exec bash
 fi
 
 exec "$@"

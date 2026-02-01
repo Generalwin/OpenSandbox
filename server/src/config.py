@@ -114,6 +114,23 @@ class KubernetesRuntimeConfig(BaseModel):
     )
 
 
+class AgentSandboxRuntimeConfig(BaseModel):
+    """Agent-sandbox runtime configuration."""
+
+    template_file: Optional[str] = Field(
+        default=None,
+        description="Path to Sandbox CR YAML template file for agent-sandbox.",
+    )
+    shutdown_policy: Literal["Delete", "Retain"] = Field(
+        default="Delete",
+        description="Shutdown policy applied when a sandbox expires (Delete or Retain).",
+    )
+    ingress_enabled: bool = Field(
+        default=True,
+        description="Whether ingress routing to agent-sandbox pods is expected to be enabled.",
+    )
+
+
 class RuntimeConfig(BaseModel):
     """Runtime selection (docker, kubernetes, etc.)."""
 
@@ -185,6 +202,7 @@ class AppConfig(BaseModel):
     server: ServerConfig = Field(default_factory=ServerConfig)
     runtime: RuntimeConfig = Field(..., description="Sandbox runtime configuration.")
     kubernetes: Optional[KubernetesRuntimeConfig] = None
+    agent_sandbox: Optional["AgentSandboxRuntimeConfig"] = None
     router: Optional[RouterConfig] = None
     docker: DockerConfig = Field(default_factory=DockerConfig)
 
@@ -193,9 +211,19 @@ class AppConfig(BaseModel):
         if self.runtime.type == "docker":
             if self.kubernetes is not None:
                 raise ValueError("Kubernetes block must be omitted when runtime.type = 'docker'.")
+            if self.agent_sandbox is not None:
+                raise ValueError("agent_sandbox block must be omitted when runtime.type = 'docker'.")
         elif self.runtime.type == "kubernetes":
             if self.kubernetes is None:
                 self.kubernetes = KubernetesRuntimeConfig()
+            provider_type = (self.kubernetes.workload_provider or "").lower()
+            if provider_type == "agent-sandbox":
+                if self.agent_sandbox is None:
+                    self.agent_sandbox = AgentSandboxRuntimeConfig()
+            elif self.agent_sandbox is not None:
+                raise ValueError(
+                    "agent_sandbox block requires kubernetes.workload_provider = 'agent-sandbox'."
+                )
         else:
             raise ValueError(f"Unsupported runtime type '{self.runtime.type}'.")
         return self

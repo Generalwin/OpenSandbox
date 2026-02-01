@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sandbox service implementations."""
+"""
+Agent-sandbox template loader and merger.
+"""
 
-from src.services.docker import DockerSandboxService
-from src.services.k8s.kubernetes_service import KubernetesSandboxService
-from src.services.factory import create_sandbox_service
-from src.services.sandbox_service import SandboxService
+from typing import Optional
 
-__all__ = [
-    "SandboxService",
-    "DockerSandboxService",
-    "KubernetesSandboxService",
-    "create_sandbox_service",
-]
+from src.services.k8s.template_manager import BaseSandboxTemplateManager
+
+
+class AgentSandboxTemplateManager(BaseSandboxTemplateManager):
+    """
+    Manager for agent-sandbox Sandbox CR templates.
+    """
+
+    def __init__(self, template_file_path: Optional[str] = None):
+        super().__init__(template_file_path, template_kind="Agent-sandbox")

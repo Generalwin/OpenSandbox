@@ -81,7 +81,7 @@ api_key = "your-secret-api-key-change-this"
 
 [runtime]
 type = "docker"
-execd_image = "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/execd:v1.0.3"
+execd_image = "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/execd:v1.0.5"
 
 [docker]
 network_mode = "host"  # 容器共享宿主机网络，只能创建一个sandbox实例
@@ -97,7 +97,7 @@ api_key = "your-secret-api-key-change-this"
 
 [runtime]
 type = "docker"
-execd_image = "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/execd:v1.0.3"
+execd_image = "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/execd:v1.0.5"
 
 [docker]
 network_mode = "bridge"  # 容器隔离网络
@@ -353,6 +353,14 @@ curl -X DELETE http://localhost:8080/v1/sandboxes/<sandbox-id>
 | 键 | 类型 | 默认值 | 描述 |
 |----|------|--------|------|
 | `docker.network_mode` | string | `"host"` | 网络模式（`"host"` 或 `"bridge"`）|
+
+### Agent-sandbox 配置
+
+| 键 | 类型 | 默认值 | 描述 |
+|----|------|--------|------|
+| `agent_sandbox.template_file` | string | `null` | agent-sandbox 的 Sandbox CR YAML 模板路径（仅在 `kubernetes.workload_provider = "agent-sandbox"` 时使用） |
+| `agent_sandbox.shutdown_policy` | string | `"Delete"` | 过期时的关停策略（`"Delete"` 或 `"Retain"`） |
+| `agent_sandbox.ingress_enabled` | boolean | `true` | 是否启用 ingress 路由 |
 
 ### 环境变量
 
