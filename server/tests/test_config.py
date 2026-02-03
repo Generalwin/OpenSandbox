@@ -48,7 +48,7 @@ def test_load_config_from_file(tmp_path, monkeypatch):
 
         [ingress]
         mode = "gateway"
-        gateway.address = "https://*.opensandbox.io"
+        gateway.address = "*.opensandbox.io"
         gateway.route.mode = "wildcard"
         """
     )
@@ -65,7 +65,7 @@ def test_load_config_from_file(tmp_path, monkeypatch):
     assert loaded.ingress is not None
     assert loaded.ingress.mode == "gateway"
     assert loaded.ingress.gateway is not None
-    assert loaded.ingress.gateway.address == "https://*.opensandbox.io"
+    assert loaded.ingress.gateway.address == "*.opensandbox.io"
     assert loaded.ingress.gateway.route.mode == "wildcard"
     assert loaded.kubernetes is not None
 
@@ -91,7 +91,7 @@ def test_ingress_gateway_requires_gateway_block():
     cfg = IngressConfig(
         mode="gateway",
         gateway=GatewayConfig(
-            address="https://gateway.opensandbox.io",
+            address="gateway.opensandbox.io",
             route=GatewayRouteModeConfig(mode="uri"),
         ),
     )
@@ -103,18 +103,18 @@ def test_gateway_address_validation_for_wildcard_mode():
         IngressConfig(
             mode="gateway",
             gateway=GatewayConfig(
-                address="https://gateway.opensandbox.io",
+                address="gateway.opensandbox.io",
                 route=GatewayRouteModeConfig(mode="wildcard"),
             ),
         )
     cfg = IngressConfig(
         mode="gateway",
         gateway=GatewayConfig(
-            address="https://*.opensandbox.io",
+            address="*.opensandbox.io",
             route=GatewayRouteModeConfig(mode="wildcard"),
         ),
     )
-    assert cfg.gateway.address == "https://*.opensandbox.io"
+    assert cfg.gateway.address == "*.opensandbox.io"
     with pytest.raises(ValueError):
         IngressConfig(
             mode="gateway",
@@ -139,13 +139,21 @@ def test_gateway_address_validation_for_wildcard_mode():
                 route=GatewayRouteModeConfig(mode="wildcard"),
             ),
         )
+    with pytest.raises(ValueError):
+        IngressConfig(
+            mode="gateway",
+            gateway=GatewayConfig(
+                address="https://*.opensandbox.io",
+                route=GatewayRouteModeConfig(mode="wildcard"),
+            ),
+        )
 
 
 def test_gateway_route_mode_allows_wildcard_alias():
     cfg = IngressConfig(
         mode="gateway",
         gateway=GatewayConfig(
-            address="https://*.opensandbox.io",
+            address="*.opensandbox.io",
             route=GatewayRouteModeConfig(mode="wildcard"),
         ),
     )
@@ -249,14 +257,6 @@ def test_gateway_address_validation_for_non_wildcard_mode():
         ),
     )
     assert cfg.gateway.address == "gateway.opensandbox.io"
-    cfg_scheme = IngressConfig(
-        mode="gateway",
-        gateway=GatewayConfig(
-            address="https://gateway.opensandbox.io",
-            route=GatewayRouteModeConfig(mode="header"),
-        ),
-    )
-    assert cfg_scheme.gateway.address == "https://gateway.opensandbox.io"
     cfg_ip = IngressConfig(
         mode="gateway",
         gateway=GatewayConfig(
@@ -273,14 +273,6 @@ def test_gateway_address_validation_for_non_wildcard_mode():
         ),
     )
     assert cfg_ip_port.gateway.address == "10.0.0.1:8080"
-    cfg_ip_port_scheme = IngressConfig(
-        mode="gateway",
-        gateway=GatewayConfig(
-            address="http://10.0.0.1:8080",
-            route=GatewayRouteModeConfig(mode="uri"),
-        ),
-    )
-    assert cfg_ip_port_scheme.gateway.address == "http://10.0.0.1:8080"
 
 
 def test_gateway_address_allows_scheme_less_defaults():
@@ -292,20 +284,20 @@ def test_gateway_address_allows_scheme_less_defaults():
         ),
     )
     assert cfg.gateway.address == "*.example.com"
-    cfg2 = IngressConfig(
-        mode="gateway",
-        gateway=GatewayConfig(
-            address="https://*.example.com",
-            route=GatewayRouteModeConfig(mode="wildcard"),
-        ),
-    )
-    assert cfg2.gateway.address == "https://*.example.com"
-
-
-def test_tunnel_mode_rejects_gateway_block():
     with pytest.raises(ValueError):
         IngressConfig(
-            mode="tunnel",
+            mode="gateway",
+            gateway=GatewayConfig(
+                address="https://*.example.com",
+                route=GatewayRouteModeConfig(mode="wildcard"),
+            ),
+        )
+
+
+def test_direct_mode_rejects_gateway_block():
+    with pytest.raises(ValueError):
+        IngressConfig(
+            mode="direct",
             gateway=GatewayConfig(
                 address="gateway.opensandbox.io",
                 route=GatewayRouteModeConfig(mode="header"),
@@ -328,10 +320,10 @@ def test_docker_runtime_rejects_gateway_ingress():
                 ),
             ),
         )
-    # tunnel remains valid
+    # direct remains valid
     app_cfg = AppConfig(
         server=server_cfg,
         runtime=runtime_cfg,
-        ingress=IngressConfig(mode="tunnel"),
+        ingress=IngressConfig(mode="direct"),
     )
-    assert app_cfg.ingress.mode == "tunnel"
+    assert app_cfg.ingress.mode == "direct"

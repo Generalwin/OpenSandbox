@@ -45,7 +45,7 @@ _DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]
 _WILDCARD_DOMAIN_RE = re.compile(r"^\*\.(?!-)[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+$")
 _IPV4_WITH_PORT_RE = re.compile(r"^(?P<ip>(?:\d{1,3}\.){3}\d{1,3})(?::(?P<port>\d{1,5}))?$")
 
-INGRESS_MODE_TUNNEL = "tunnel"
+INGRESS_MODE_DIRECT = "direct"
 INGRESS_MODE_GATEWAY = "gateway"
 GATEWAY_ROUTE_MODE_WILDCARD = "wildcard"
 GATEWAY_ROUTE_MODE_HEADER = "header"
@@ -106,10 +106,7 @@ class GatewayConfig(BaseModel):
 
     address: str = Field(
         ...,
-        description=(
-            "Gateway host used to expose sandboxes. Supports domain, IP, or IP:port. "
-            "Scheme (http/https) is optional; when omitted, http is assumed."
-        ),
+        description="Gateway host used to expose sandboxes (domain or IP, may include :port; scheme is not allowed).",
         min_length=1,
     )
     route: GatewayRouteModeConfig = Field(
@@ -121,9 +118,9 @@ class GatewayConfig(BaseModel):
 class IngressConfig(BaseModel):
     """Configuration for exposing sandbox ingress."""
 
-    mode: Literal["tunnel", "gateway"] = Field(
-        default=INGRESS_MODE_TUNNEL,
-        description="Ingress exposure mode (tunnel or gateway).",
+    mode: Literal[INGRESS_MODE_DIRECT, INGRESS_MODE_GATEWAY] = Field(
+        default=INGRESS_MODE_DIRECT,
+        description="Ingress exposure mode (direct or gateway).",
     )
     gateway: Optional[GatewayConfig] = Field(
         default=None,
@@ -134,28 +131,15 @@ class IngressConfig(BaseModel):
     def validate_ingress_mode(self) -> "IngressConfig":
         if self.mode == INGRESS_MODE_GATEWAY and self.gateway is None:
             raise ValueError("gateway block must be provided when ingress.mode = 'gateway'.")
-        if self.mode == INGRESS_MODE_TUNNEL and self.gateway is not None:
+        if self.mode == INGRESS_MODE_DIRECT and self.gateway is not None:
             raise ValueError("gateway block must be omitted unless ingress.mode = 'gateway'.")
 
         if self.mode == INGRESS_MODE_GATEWAY and self.gateway:
             route_mode = self.gateway.route.mode
             address_raw = self.gateway.address
-            scheme = "http"
             hostport = address_raw
             if "://" in address_raw:
-                parsed = urlparse(address_raw)
-                if parsed.scheme not in {"http", "https"}:
-                    raise ValueError(
-                        "ingress.gateway.address scheme must be http or https when provided."
-                    )
-                if parsed.username or parsed.password:
-                    raise ValueError("ingress.gateway.address must not include userinfo.")
-                if not parsed.hostname:
-                    raise ValueError("ingress.gateway.address must include a host.")
-                scheme = parsed.scheme
-                hostport = parsed.hostname
-                if parsed.port:
-                    hostport = f"{hostport}:{parsed.port}"
+                raise ValueError("ingress.gateway.address must not include a scheme; clients choose http/https.")
 
             if route_mode == GATEWAY_ROUTE_MODE_WILDCARD:
                 if not _is_wildcard_domain(hostport):
@@ -324,8 +308,8 @@ class AppConfig(BaseModel):
                 raise ValueError("Kubernetes block must be omitted when runtime.type = 'docker'.")
             if self.agent_sandbox is not None:
                 raise ValueError("agent_sandbox block must be omitted when runtime.type = 'docker'.")
-            if self.ingress is not None and self.ingress.mode != INGRESS_MODE_TUNNEL:
-                raise ValueError("ingress.mode must be 'tunnel' when runtime.type = 'docker'.")
+            if self.ingress is not None and self.ingress.mode != INGRESS_MODE_DIRECT:
+                raise ValueError("ingress.mode must be 'direct' when runtime.type = 'docker'.")
         elif self.runtime.type == "kubernetes":
             if self.kubernetes is None:
                 self.kubernetes = KubernetesRuntimeConfig()
@@ -430,6 +414,8 @@ __all__ = [
     "IngressConfig",
     "GatewayConfig",
     "GatewayRouteModeConfig",
+    "INGRESS_MODE_DIRECT",
+    "INGRESS_MODE_GATEWAY",
     "DockerConfig",
     "KubernetesRuntimeConfig",
     "DEFAULT_CONFIG_PATH",

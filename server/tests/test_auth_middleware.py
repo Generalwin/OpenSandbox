@@ -23,7 +23,7 @@ def _app_config_with_api_key() -> AppConfig:
     return AppConfig(
         server=ServerConfig(api_key="secret-key"),
         runtime=RuntimeConfig(type="docker", execd_image="opensandbox/execd:latest"),
-        ingress=IngressConfig(mode="tunnel"),
+        ingress=IngressConfig(mode="direct"),
     )
 
 

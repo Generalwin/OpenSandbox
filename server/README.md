@@ -112,16 +112,16 @@ cp example.batchsandbox-template.yaml ~/batchsandbox-template.yaml
    ```
    Further reading on Docker container security: https://docs.docker.com/engine/security/
 
-**Ingress exposure (tunnel | gateway)**
+**Ingress exposure (direct | gateway)**
    ```toml
    [ingress]
-   mode = "tunnel"  # docker runtime only supports tunnel
-   # gateway.address = "https://*.example.com"  # scheme optional; defaults to http when omitted
+   mode = "direct"  # docker runtime only supports direct
+   # gateway.address = "*.example.com"         # host only (domain or IP[:port]); scheme is not allowed
    # gateway.route.mode = "wildcard"            # wildcard | header | uri
    ```
-   - `mode=tunnel`: default; required when `runtime.type=docker`.
+   - `mode=direct`: default; required when `runtime.type=docker` (client ↔ sandbox direct reachability, no L7 gateway).
    - `mode=gateway`: configure external ingress.
-     - `gateway.address`: wildcard domain required when `gateway.route.mode=wildcard`; otherwise must be domain, IP, or IP:port (http/https optional; no userinfo).
+     - `gateway.address`: wildcard domain required when `gateway.route.mode=wildcard`; otherwise must be domain, IP, or IP:port. Do not include scheme; clients decide http/https.
      - `gateway.route.mode`: `wildcard` (host-based wildcard), `header` (header-based), `uri` (path-prefix).
      - Response format examples:
        - `wildcard`: `<sandbox-id>-<port>.example.com/path/to/request`

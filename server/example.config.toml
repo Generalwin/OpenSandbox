@@ -29,10 +29,10 @@ api_key = ""
 
 
 [ingress]
-# Ingress exposure mode: tunnel (default) or gateway
-mode = "tunnel"
+# Ingress exposure mode: direct (default) or gateway
+mode = "direct"
 # Gateway-only settings (uncomment when mode = "gateway")
-# gateway.address = "https://gateway.opensandbox.io"  # scheme optional; defaults to http when omitted
+# gateway.address = "gateway.opensandbox.io"  # host (domain/IP or IP:port), no scheme
 # gateway.route.mode = "wildcard"  # wildcard | header | uri
 # gateway.route.header-name = "X-SANDBOX-ID"
 # gateway.route.uri-prefix = "/sandbox"

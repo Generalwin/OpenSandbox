@@ -117,16 +117,16 @@ seccomp_profile = ""        # 配置文件路径或名称；为空使用 Docker 
 ```
 更多 Docker 安全参考：https://docs.docker.com/engine/security/
 
-**Ingress 暴露（tunnel | gateway）**
+**Ingress 暴露（direct | gateway）**
 ```toml
 [ingress]
-mode = "tunnel"  # Docker 运行时仅支持 tunnel
-# gateway.address = "https://*.example.com"  # scheme 可选，缺省按 http
+mode = "direct"  # Docker 运行时仅支持 direct（直连，无 L7 网关）
+# gateway.address = "*.example.com"  # 仅主机（域名/IP 或 IP:port），不允许带 scheme
 # gateway.route.mode = "wildcard"            # wildcard | header | uri
 ```
-- `mode=tunnel`：默认；当 `runtime.type=docker` 时必须使用。
+- `mode=direct`：默认；当 `runtime.type=docker` 时必须使用（客户端与 sandbox 直连，不经过网关）。
 - `mode=gateway`：配置外部入口。
-  - `gateway.address`：当 `gateway.route.mode=wildcard` 时必须是泛域名；其他模式需为域名/IP 或 IP:port，可选 http/https（不允许带用户信息）。
+  - `gateway.address`：当 `gateway.route.mode=wildcard` 时必须是泛域名；其他模式需为域名/IP 或 IP:port。不允许携带 scheme，客户端自行选择 http/https。
   - `gateway.route.mode`：`wildcard`（域名泛匹配）、`header`（基于请求头）、`uri`（基于路径前缀）。
   - 返回示例：
     - `wildcard`：`<sandbox-id>-<port>.example.com/path/to/request`

@@ -39,7 +39,7 @@ def _app_config() -> AppConfig:
     return AppConfig(
         server=ServerConfig(),
         runtime=RuntimeConfig(type="docker", execd_image="ghcr.io/opensandbox/platform:latest"),
-        ingress=IngressConfig(mode="tunnel"),
+        ingress=IngressConfig(mode="direct"),
     )
 
 
