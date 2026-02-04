@@ -241,8 +241,9 @@ public class SandboxE2ETest extends BaseE2ETest {
                         .readyTimeout(Duration.ofSeconds(60))
                         .networkPolicy(networkPolicy)
                         .build();
+        // Wait for NetworkPolicy sidecar to be fully initialized
         try {
-            Thread.sleep(5);
+            Thread.sleep(2000);
         } catch (InterruptedException ignored) {
         }
 
