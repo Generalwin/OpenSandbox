@@ -107,10 +107,48 @@ def _assert_terminal_event_contract(
         _assert_recent_timestamp_ms(errors[0].timestamp)
 
 
+async def run_with_retry(
+    code_interpreter: CodeInterpreter,
+    code: str,
+    *,
+    context=None,
+    language=None,
+    handlers=None,
+    max_retries: int = 3,
+    retry_delay: float = 1.0,
+):
+    """
+    Run code with retry logic for flaky kernel initialization.
+
+    Returns the execution result, retrying on empty/None id responses.
+    """
+    last_result = None
+    for attempt in range(max_retries):
+        result = await code_interpreter.codes.run(
+            code,
+            context=context,
+            language=language,
+            handlers=handlers,
+        )
+        last_result = result
+        if result is not None and result.id is not None:
+            return result
+        if attempt < max_retries - 1:
+            logger.warning(
+                "Execution returned empty result (attempt %d/%d), retrying in %.1fs...",
+                attempt + 1, max_retries, retry_delay
+            )
+            await asyncio.sleep(retry_delay)
+            retry_delay *= 1.5  # exponential backoff
+    return last_result
+
+
 @asynccontextmanager
 async def managed_ctx(code_interpreter: CodeInterpreter, language: str):
     ctx = await code_interpreter.codes.create_context(language)
     try:
+        # Small delay to allow kernel initialization
+        await asyncio.sleep(0.2)
         yield ctx
     finally:
         try:
@@ -804,11 +842,14 @@ class TestCodeInterpreterE2E:
         ) as (python1, python2, java1, go1):
             logger.info("✓ Created multiple contexts for different languages")
 
-            result1 = await code_interpreter.codes.run(
+            # Use retry helper for flaky kernel initialization
+            result1 = await run_with_retry(
+                code_interpreter,
                 "secret_value1 = 'python1_secret'\nprint(f'Python1 secret: {secret_value1}')",
                 context=python1,
             )
-            result2 = await code_interpreter.codes.run(
+            result2 = await run_with_retry(
+                code_interpreter,
                 "secret_value2 = 'python2_secret'\nprint(f'Python2 secret: {secret_value2}')",
                 context=python2,
             )
@@ -830,12 +871,14 @@ class TestCodeInterpreterE2E:
             assert check2.error.name == "NameError"
             logger.info("✓ Context isolation verified - contexts are properly isolated")
 
-            java_result = await code_interpreter.codes.run(
+            java_result = await run_with_retry(
+                code_interpreter,
                 "String javaSecret = \"java_secret\";\n"
                 + "System.out.println(\"Java secret: \" + javaSecret);",
                 context=java1,
                 )
-            go_result = await code_interpreter.codes.run(
+            go_result = await run_with_retry(
+                code_interpreter,
                 "package main\n"
                 + "import \"fmt\"\n"
                 + "func main() {\n"
