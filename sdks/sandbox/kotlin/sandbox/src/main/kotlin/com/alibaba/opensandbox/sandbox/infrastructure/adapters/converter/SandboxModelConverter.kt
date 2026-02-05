@@ -26,11 +26,10 @@ import com.alibaba.opensandbox.sandbox.api.models.ListSandboxesResponse
 import com.alibaba.opensandbox.sandbox.api.models.RenewSandboxExpirationRequest
 import com.alibaba.opensandbox.sandbox.api.models.RenewSandboxExpirationResponse
 import com.alibaba.opensandbox.sandbox.api.models.execd.Metrics
-import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.AccessMode
-import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.HostBackend
+import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.Host
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.NetworkPolicy
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.NetworkRule
-import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.PVCBackend
+import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.PVC
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.PagedSandboxInfos
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.PaginationInfo
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.SandboxCreateResponse
@@ -43,11 +42,10 @@ import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.SandboxRenewRespo
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.Volume
 import java.time.Duration
 import java.time.OffsetDateTime
-import com.alibaba.opensandbox.sandbox.api.models.AccessMode as ApiAccessMode
-import com.alibaba.opensandbox.sandbox.api.models.HostBackend as ApiHostBackend
+import com.alibaba.opensandbox.sandbox.api.models.Host as ApiHost
 import com.alibaba.opensandbox.sandbox.api.models.NetworkPolicy as ApiNetworkPolicy
 import com.alibaba.opensandbox.sandbox.api.models.NetworkRule as ApiNetworkRule
-import com.alibaba.opensandbox.sandbox.api.models.PVCBackend as ApiPVCBackend
+import com.alibaba.opensandbox.sandbox.api.models.PVC as ApiPVC
 import com.alibaba.opensandbox.sandbox.api.models.PaginationInfo as ApiPaginationInfo
 import com.alibaba.opensandbox.sandbox.api.models.Sandbox as ApiSandbox
 import com.alibaba.opensandbox.sandbox.api.models.SandboxStatus as ApiSandboxStatus
@@ -109,27 +107,17 @@ internal object SandboxModelConverter {
     }
 
     /**
-     * Converts Domain HostBackend -> API HostBackend
+     * Converts Domain Host -> API Host
      */
-    fun HostBackend.toApiHostBackend(): ApiHostBackend {
-        return ApiHostBackend(path = this.path)
+    fun Host.toApiHost(): ApiHost {
+        return ApiHost(path = this.path)
     }
 
     /**
-     * Converts Domain PVCBackend -> API PVCBackend
+     * Converts Domain PVC -> API PVC
      */
-    fun PVCBackend.toApiPVCBackend(): ApiPVCBackend {
-        return ApiPVCBackend(claimName = this.claimName)
-    }
-
-    /**
-     * Converts Domain AccessMode -> API AccessMode
-     */
-    fun AccessMode.toApiAccessMode(): ApiAccessMode {
-        return when (this) {
-            AccessMode.RW -> ApiAccessMode.RW
-            AccessMode.RO -> ApiAccessMode.RO
-        }
+    fun PVC.toApiPVC(): ApiPVC {
+        return ApiPVC(claimName = this.claimName)
     }
 
     /**
@@ -139,9 +127,9 @@ internal object SandboxModelConverter {
         return ApiVolume(
             name = this.name,
             mountPath = this.mountPath,
-            accessMode = this.accessMode.toApiAccessMode(),
-            host = this.host?.toApiHostBackend(),
-            pvc = this.pvc?.toApiPVCBackend(),
+            readOnly = this.readOnly,
+            host = this.host?.toApiHost(),
+            pvc = this.pvc?.toApiPVC(),
             subPath = this.subPath,
         )
     }

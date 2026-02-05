@@ -41,11 +41,11 @@ from opensandbox.api.lifecycle.models import (
 from opensandbox.api.lifecycle.models.create_sandbox_request import CreateSandboxRequest
 from opensandbox.api.lifecycle.models.image_spec import ImageSpec
 from opensandbox.models.sandboxes import (
-    HostBackend,
+    Host,
     NetworkPolicy,
     PagedSandboxInfos,
     PaginationInfo,
-    PVCBackend,
+    PVC,
     SandboxCreateResponse,
     SandboxEndpoint,
     SandboxImageSpec,
@@ -89,23 +89,22 @@ class SandboxModelConverter:
     @staticmethod
     def to_api_volume(volume: Volume):
         """Convert domain Volume to API Volume."""
-        from opensandbox.api.lifecycle.models.access_mode import AccessMode as ApiAccessMode
-        from opensandbox.api.lifecycle.models.host_backend import (
-            HostBackend as ApiHostBackend,
+        from opensandbox.api.lifecycle.models.host import (
+            Host as ApiHost,
         )
-        from opensandbox.api.lifecycle.models.pvc_backend import (
-            PVCBackend as ApiPVCBackend,
+        from opensandbox.api.lifecycle.models.pvc import (
+            PVC as ApiPVC,
         )
         from opensandbox.api.lifecycle.models.volume import Volume as ApiVolume
         from opensandbox.api.lifecycle.types import UNSET
 
         api_host = UNSET
         if volume.host is not None:
-            api_host = ApiHostBackend(path=volume.host.path)
+            api_host = ApiHost(path=volume.host.path)
 
         api_pvc = UNSET
         if volume.pvc is not None:
-            api_pvc = ApiPVCBackend(claim_name=volume.pvc.claim_name)
+            api_pvc = ApiPVC(claim_name=volume.pvc.claim_name)
 
         api_sub_path = UNSET
         if volume.sub_path is not None:
@@ -114,7 +113,7 @@ class SandboxModelConverter:
         return ApiVolume(
             name=volume.name,
             mount_path=volume.mount_path,
-            access_mode=ApiAccessMode(volume.access_mode),
+            read_only=volume.read_only,
             host=api_host,
             pvc=api_pvc,
             sub_path=api_sub_path,

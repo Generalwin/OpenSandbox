@@ -111,16 +111,7 @@ class NetworkPolicy(BaseModel):
 # ============================================================================
 
 
-class AccessMode(str, Enum):
-    """
-    Volume access mode controlling read/write permissions.
-    """
-
-    RW = "RW"  # Read-write access
-    RO = "RO"  # Read-only access
-
-
-class HostBackend(BaseModel):
+class Host(BaseModel):
     """
     Host path bind mount backend.
 
@@ -138,7 +129,7 @@ class HostBackend(BaseModel):
     )
 
 
-class PVCBackend(BaseModel):
+class PVC(BaseModel):
     """
     Kubernetes PersistentVolumeClaim mount backend.
 
@@ -165,7 +156,7 @@ class Volume(BaseModel):
     Each volume entry contains:
     - A unique name identifier
     - Exactly one backend struct (host, pvc, etc.) with backend-specific fields
-    - Common mount settings (mountPath, accessMode, subPath)
+    - Common mount settings (mountPath, readOnly, subPath)
     """
 
     name: str = Field(
@@ -174,11 +165,11 @@ class Volume(BaseModel):
         pattern=r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
         max_length=63,
     )
-    host: Optional[HostBackend] = Field(
+    host: Optional[Host] = Field(
         None,
         description="Host path bind mount backend.",
     )
-    pvc: Optional[PVCBackend] = Field(
+    pvc: Optional[PVC] = Field(
         None,
         description="Kubernetes PersistentVolumeClaim mount backend.",
     )
@@ -188,10 +179,10 @@ class Volume(BaseModel):
         description="Absolute path inside the container where the volume is mounted.",
         pattern=r"^/.*",
     )
-    access_mode: AccessMode = Field(
-        ...,
-        alias="accessMode",
-        description="Volume access mode (RW or RO).",
+    read_only: bool = Field(
+        False,
+        alias="readOnly",
+        description="If true, the volume is mounted as read-only. Defaults to false (read-write).",
     )
     sub_path: Optional[str] = Field(
         None,

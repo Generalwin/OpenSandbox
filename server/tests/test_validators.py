@@ -15,7 +15,7 @@
 import pytest
 from fastapi import HTTPException
 
-from src.api.schema import AccessMode, HostBackend, PVCBackend, Volume
+from src.api.schema import Host, PVC, Volume
 from src.services.constants import SandboxErrorCodes
 from src.services.validators import (
     ensure_metadata_labels,
@@ -331,9 +331,9 @@ class TestEnsureVolumesValid:
         """Valid host volume should pass validation."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
         )
         ensure_volumes_valid([volume])
 
@@ -341,9 +341,9 @@ class TestEnsureVolumesValid:
         """Valid PVC volume should pass validation."""
         volume = Volume(
             name="models",
-            pvc=PVCBackend(claim_name="shared-models-pvc"),
+            pvc=PVC(claim_name="shared-models-pvc"),
             mount_path="/mnt/models",
-            access_mode=AccessMode.RO,
+            read_only=True,
         )
         ensure_volumes_valid([volume])
 
@@ -351,9 +351,9 @@ class TestEnsureVolumesValid:
         """Valid volume with subPath should pass validation."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
             sub_path="task-001",
         )
         ensure_volumes_valid([volume])
@@ -363,15 +363,15 @@ class TestEnsureVolumesValid:
         volumes = [
             Volume(
                 name="workdir",
-                host=HostBackend(path="/data/opensandbox"),
+                host=Host(path="/data/opensandbox"),
                 mount_path="/mnt/work",
-                access_mode=AccessMode.RW,
+                read_only=False,
             ),
             Volume(
                 name="models",
-                pvc=PVCBackend(claim_name="shared-models-pvc"),
+                pvc=PVC(claim_name="shared-models-pvc"),
                 mount_path="/mnt/models",
-                access_mode=AccessMode.RO,
+                read_only=True,
             ),
         ]
         ensure_volumes_valid(volumes)
@@ -381,15 +381,15 @@ class TestEnsureVolumesValid:
         volumes = [
             Volume(
                 name="workdir",
-                host=HostBackend(path="/data/a"),
+                host=Host(path="/data/a"),
                 mount_path="/mnt/a",
-                access_mode=AccessMode.RW,
+                read_only=False,
             ),
             Volume(
                 name="workdir",  # Duplicate name
-                host=HostBackend(path="/data/b"),
+                host=Host(path="/data/b"),
                 mount_path="/mnt/b",
-                access_mode=AccessMode.RW,
+                read_only=False,
             ),
         ]
         with pytest.raises(HTTPException) as exc_info:
@@ -405,9 +405,9 @@ class TestEnsureVolumesValid:
         with pytest.raises(ValidationError) as exc_info:
             Volume(
                 name="Invalid_Name",  # Invalid: uppercase and underscore
-                host=HostBackend(path="/data/opensandbox"),
+                host=Host(path="/data/opensandbox"),
                 mount_path="/mnt/work",
-                access_mode=AccessMode.RW,
+                read_only=False,
             )
         assert "name" in str(exc_info.value)
 
@@ -419,9 +419,9 @@ class TestEnsureVolumesValid:
         with pytest.raises(ValidationError) as exc_info:
             Volume(
                 name="workdir",
-                host=HostBackend(path="/data/opensandbox"),
+                host=Host(path="/data/opensandbox"),
                 mount_path="relative/path",  # Invalid: not absolute
-                access_mode=AccessMode.RW,
+                read_only=False,
             )
         assert "mount_path" in str(exc_info.value)
 
@@ -429,9 +429,9 @@ class TestEnsureVolumesValid:
         """Invalid subPath should raise HTTPException."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
             sub_path="../escape",  # Invalid: path traversal
         )
         with pytest.raises(HTTPException) as exc_info:
@@ -443,9 +443,9 @@ class TestEnsureVolumesValid:
         """Host path allowlist should be enforced."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/etc/passwd"),  # Not in allowed list
+            host=Host(path="/etc/passwd"),  # Not in allowed list
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
         )
         with pytest.raises(HTTPException) as exc_info:
             ensure_volumes_valid([volume], allowed_host_prefixes=["/data/opensandbox"])
@@ -458,5 +458,5 @@ class TestEnsureVolumesValid:
 
         # Pydantic validates the pattern before our validators run
         with pytest.raises(ValidationError) as exc_info:
-            PVCBackend(claim_name="Invalid_PVC")  # Invalid: uppercase and underscore
+            PVC(claim_name="Invalid_PVC")  # Invalid: uppercase and underscore
         assert "claim_name" in str(exc_info.value)

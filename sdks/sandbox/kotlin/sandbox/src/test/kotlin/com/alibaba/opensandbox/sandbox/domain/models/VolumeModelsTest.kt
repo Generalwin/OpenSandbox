@@ -16,41 +16,42 @@
 
 package com.alibaba.opensandbox.sandbox.domain.models
 
-import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.AccessMode
-import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.HostBackend
-import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.PVCBackend
+import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.Host
+import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.PVC
 import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.Volume
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class VolumeModelsTest {
 
     @Test
-    fun `HostBackend should require absolute path`() {
-        val backend = HostBackend.of("/data/shared")
+    fun `Host should require absolute path`() {
+        val backend = Host.of("/data/shared")
         assertEquals("/data/shared", backend.path)
     }
 
     @Test
-    fun `HostBackend should reject relative path`() {
+    fun `Host should reject relative path`() {
         assertThrows(IllegalArgumentException::class.java) {
-            HostBackend.of("relative/path")
+            Host.of("relative/path")
         }
     }
 
     @Test
-    fun `PVCBackend should accept valid claim name`() {
-        val backend = PVCBackend.of("my-pvc")
+    fun `PVC should accept valid claim name`() {
+        val backend = PVC.of("my-pvc")
         assertEquals("my-pvc", backend.claimName)
     }
 
     @Test
-    fun `PVCBackend should reject blank claim name`() {
+    fun `PVC should reject blank claim name`() {
         assertThrows(IllegalArgumentException::class.java) {
-            PVCBackend.of("   ")
+            PVC.of("   ")
         }
     }
 
@@ -58,9 +59,8 @@ class VolumeModelsTest {
     fun `Volume with host backend should be created correctly`() {
         val volume = Volume.builder()
             .name("data")
-            .host(HostBackend.of("/data/shared"))
+            .host(Host.of("/data/shared"))
             .mountPath("/mnt/data")
-            .accessMode(AccessMode.RW)
             .build()
 
         assertEquals("data", volume.name)
@@ -68,7 +68,7 @@ class VolumeModelsTest {
         assertEquals("/data/shared", volume.host?.path)
         assertNull(volume.pvc)
         assertEquals("/mnt/data", volume.mountPath)
-        assertEquals(AccessMode.RW, volume.accessMode)
+        assertFalse(volume.readOnly) // default is read-write
         assertNull(volume.subPath)
     }
 
@@ -76,9 +76,9 @@ class VolumeModelsTest {
     fun `Volume with PVC backend should be created correctly`() {
         val volume = Volume.builder()
             .name("models")
-            .pvc(PVCBackend.of("shared-models"))
+            .pvc(PVC.of("shared-models"))
             .mountPath("/mnt/models")
-            .accessMode(AccessMode.RO)
+            .readOnly(true)
             .subPath("v1")
             .build()
 
@@ -87,7 +87,7 @@ class VolumeModelsTest {
         assertNotNull(volume.pvc)
         assertEquals("shared-models", volume.pvc?.claimName)
         assertEquals("/mnt/models", volume.mountPath)
-        assertEquals(AccessMode.RO, volume.accessMode)
+        assertTrue(volume.readOnly)
         assertEquals("v1", volume.subPath)
     }
 
@@ -96,9 +96,8 @@ class VolumeModelsTest {
         assertThrows(IllegalArgumentException::class.java) {
             Volume.builder()
                 .name("   ")
-                .host(HostBackend.of("/data"))
+                .host(Host.of("/data"))
                 .mountPath("/mnt")
-                .accessMode(AccessMode.RW)
                 .build()
         }
     }
@@ -108,9 +107,8 @@ class VolumeModelsTest {
         assertThrows(IllegalArgumentException::class.java) {
             Volume.builder()
                 .name("test")
-                .host(HostBackend.of("/data"))
+                .host(Host.of("/data"))
                 .mountPath("relative/path")
-                .accessMode(AccessMode.RW)
                 .build()
         }
     }
@@ -121,7 +119,6 @@ class VolumeModelsTest {
             Volume.builder()
                 .name("test")
                 .mountPath("/mnt")
-                .accessMode(AccessMode.RW)
                 .build()
         }
     }
@@ -131,10 +128,9 @@ class VolumeModelsTest {
         assertThrows(IllegalArgumentException::class.java) {
             Volume.builder()
                 .name("test")
-                .host(HostBackend.of("/data"))
-                .pvc(PVCBackend.of("my-pvc"))
+                .host(Host.of("/data"))
+                .pvc(PVC.of("my-pvc"))
                 .mountPath("/mnt")
-                .accessMode(AccessMode.RW)
                 .build()
         }
     }
@@ -143,9 +139,8 @@ class VolumeModelsTest {
     fun `Volume should require name`() {
         assertThrows(IllegalArgumentException::class.java) {
             Volume.builder()
-                .host(HostBackend.of("/data"))
+                .host(Host.of("/data"))
                 .mountPath("/mnt")
-                .accessMode(AccessMode.RW)
                 .build()
         }
     }
@@ -155,20 +150,19 @@ class VolumeModelsTest {
         assertThrows(IllegalArgumentException::class.java) {
             Volume.builder()
                 .name("test")
-                .host(HostBackend.of("/data"))
-                .accessMode(AccessMode.RW)
+                .host(Host.of("/data"))
                 .build()
         }
     }
 
     @Test
-    fun `Volume should require access mode`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            Volume.builder()
-                .name("test")
-                .host(HostBackend.of("/data"))
-                .mountPath("/mnt")
-                .build()
-        }
+    fun `Volume readOnly defaults to false`() {
+        val volume = Volume.builder()
+            .name("test")
+            .host(Host.of("/data"))
+            .mountPath("/mnt")
+            .build()
+
+        assertFalse(volume.readOnly)
     }
 }

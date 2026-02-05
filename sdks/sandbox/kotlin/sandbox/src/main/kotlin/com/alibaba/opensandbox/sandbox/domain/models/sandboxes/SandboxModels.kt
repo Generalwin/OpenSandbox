@@ -317,17 +317,6 @@ class NetworkPolicy private constructor(
 // ============================================================================
 
 /**
- * Volume access mode controlling read/write permissions.
- */
-enum class AccessMode {
-    /** Read-write access */
-    RW,
-
-    /** Read-only access */
-    RO,
-}
-
-/**
  * Host path bind mount backend.
  *
  * Maps a directory on the host filesystem into the container.
@@ -335,7 +324,7 @@ enum class AccessMode {
  *
  * @property path Absolute path on the host filesystem to mount
  */
-class HostBackend private constructor(
+class Host private constructor(
     val path: String,
 ) {
     companion object {
@@ -343,7 +332,7 @@ class HostBackend private constructor(
         fun builder(): Builder = Builder()
 
         @JvmStatic
-        fun of(path: String): HostBackend = builder().path(path).build()
+        fun of(path: String): Host = builder().path(path).build()
     }
 
     class Builder {
@@ -355,9 +344,9 @@ class HostBackend private constructor(
             return this
         }
 
-        fun build(): HostBackend {
+        fun build(): Host {
             val pathValue = path ?: throw IllegalArgumentException("Path must be specified")
-            return HostBackend(path = pathValue)
+            return Host(path = pathValue)
         }
     }
 }
@@ -370,7 +359,7 @@ class HostBackend private constructor(
  *
  * @property claimName Name of the PersistentVolumeClaim in the same namespace
  */
-class PVCBackend private constructor(
+class PVC private constructor(
     val claimName: String,
 ) {
     companion object {
@@ -378,7 +367,7 @@ class PVCBackend private constructor(
         fun builder(): Builder = Builder()
 
         @JvmStatic
-        fun of(claimName: String): PVCBackend = builder().claimName(claimName).build()
+        fun of(claimName: String): PVC = builder().claimName(claimName).build()
     }
 
     class Builder {
@@ -390,9 +379,9 @@ class PVCBackend private constructor(
             return this
         }
 
-        fun build(): PVCBackend {
+        fun build(): PVC {
             val claimNameValue = claimName ?: throw IllegalArgumentException("Claim name must be specified")
-            return PVCBackend(claimName = claimNameValue)
+            return PVC(claimName = claimNameValue)
         }
     }
 }
@@ -403,24 +392,23 @@ class PVCBackend private constructor(
  * Each volume entry contains:
  * - A unique name identifier
  * - Exactly one backend (host, pvc) with backend-specific fields
- * - Common mount settings (mountPath, accessMode, subPath)
+ * - Common mount settings (mountPath, readOnly, subPath)
  *
  * Example usage:
  * ```kotlin
- * // Host path mount
+ * // Host path mount (read-write by default)
  * val volume = Volume.builder()
  *     .name("workdir")
- *     .host(HostBackend.of("/data/opensandbox"))
+ *     .host(Host.of("/data/opensandbox"))
  *     .mountPath("/mnt/work")
- *     .accessMode(AccessMode.RW)
  *     .build()
  *
- * // PVC mount
+ * // PVC mount (read-only)
  * val volume = Volume.builder()
  *     .name("models")
- *     .pvc(PVCBackend.of("shared-models-pvc"))
+ *     .pvc(PVC.of("shared-models-pvc"))
  *     .mountPath("/mnt/models")
- *     .accessMode(AccessMode.RO)
+ *     .readOnly(true)
  *     .build()
  * ```
  *
@@ -428,15 +416,15 @@ class PVCBackend private constructor(
  * @property host Host path bind mount backend (mutually exclusive with pvc)
  * @property pvc Kubernetes PVC mount backend (mutually exclusive with host)
  * @property mountPath Absolute path inside the container where the volume is mounted
- * @property accessMode Volume access mode (RW or RO)
+ * @property readOnly If true, the volume is mounted as read-only. Defaults to false (read-write).
  * @property subPath Optional subdirectory under the backend path to mount
  */
 class Volume private constructor(
     val name: String,
-    val host: HostBackend?,
-    val pvc: PVCBackend?,
+    val host: Host?,
+    val pvc: PVC?,
     val mountPath: String,
-    val accessMode: AccessMode,
+    val readOnly: Boolean,
     val subPath: String?,
 ) {
     companion object {
@@ -446,10 +434,10 @@ class Volume private constructor(
 
     class Builder {
         private var name: String? = null
-        private var host: HostBackend? = null
-        private var pvc: PVCBackend? = null
+        private var host: Host? = null
+        private var pvc: PVC? = null
         private var mountPath: String? = null
-        private var accessMode: AccessMode? = null
+        private var readOnly: Boolean = false
         private var subPath: String? = null
 
         fun name(name: String): Builder {
@@ -458,12 +446,12 @@ class Volume private constructor(
             return this
         }
 
-        fun host(host: HostBackend): Builder {
+        fun host(host: Host): Builder {
             this.host = host
             return this
         }
 
-        fun pvc(pvc: PVCBackend): Builder {
+        fun pvc(pvc: PVC): Builder {
             this.pvc = pvc
             return this
         }
@@ -474,8 +462,8 @@ class Volume private constructor(
             return this
         }
 
-        fun accessMode(accessMode: AccessMode): Builder {
-            this.accessMode = accessMode
+        fun readOnly(readOnly: Boolean): Builder {
+            this.readOnly = readOnly
             return this
         }
 
@@ -487,7 +475,6 @@ class Volume private constructor(
         fun build(): Volume {
             val nameValue = name ?: throw IllegalArgumentException("Name must be specified")
             val mountPathValue = mountPath ?: throw IllegalArgumentException("Mount path must be specified")
-            val accessModeValue = accessMode ?: throw IllegalArgumentException("Access mode must be specified")
 
             // Validate exactly one backend is specified
             val backendsSpecified = listOfNotNull(host, pvc).size
@@ -503,7 +490,7 @@ class Volume private constructor(
                 host = host,
                 pvc = pvc,
                 mountPath = mountPathValue,
-                accessMode = accessModeValue,
+                readOnly = readOnly,
                 subPath = subPath,
             )
         }

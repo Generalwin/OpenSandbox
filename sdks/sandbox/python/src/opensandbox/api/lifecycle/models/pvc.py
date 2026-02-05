@@ -21,32 +21,31 @@ from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 
-T = TypeVar("T", bound="HostBackend")
+T = TypeVar("T", bound="PVC")
 
 
 @_attrs_define
-class HostBackend:
-    """Host path bind mount backend. Maps a directory on the host filesystem
-    into the container. Only available when the runtime supports host mounts.
+class PVC:
+    """Kubernetes PersistentVolumeClaim mount backend. References an existing
+    PVC in the same namespace as the sandbox pod.
 
-    Security note: Host paths are restricted by server-side allowlist.
-    Users must specify paths under permitted prefixes.
+    Only available in Kubernetes runtime.
 
         Attributes:
-            path (str): Absolute path on the host filesystem to mount.
-                Must start with '/' and be under an allowed prefix.
+            claim_name (str): Name of the PersistentVolumeClaim in the same namespace.
+                Must be a valid Kubernetes resource name.
     """
 
-    path: str
+    claim_name: str
 
     def to_dict(self) -> dict[str, Any]:
-        path = self.path
+        claim_name = self.claim_name
 
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
             {
-                "path": path,
+                "claimName": claim_name,
             }
         )
 
@@ -55,10 +54,10 @@ class HostBackend:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        path = d.pop("path")
+        claim_name = d.pop("claimName")
 
-        host_backend = cls(
-            path=path,
+        pvc = cls(
+            claim_name=claim_name,
         )
 
-        return host_backend
+        return pvc

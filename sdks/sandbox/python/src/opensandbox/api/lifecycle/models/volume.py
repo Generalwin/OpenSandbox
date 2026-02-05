@@ -21,12 +21,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 
-from ..models.access_mode import AccessMode
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.host_backend import HostBackend
-    from ..models.pvc_backend import PVCBackend
+    from ..models.host import Host
+    from ..models.pvc import PVC
 
 
 T = TypeVar("T", bound="Volume")
@@ -37,42 +36,39 @@ class Volume:
     """Storage mount definition for a sandbox. Each volume entry contains:
     - A unique name identifier
     - Exactly one backend struct (host, pvc, etc.) with backend-specific fields
-    - Common mount settings (mountPath, accessMode, subPath)
+    - Common mount settings (mountPath, readOnly, subPath)
 
         Attributes:
             name (str): Unique identifier for the volume within the sandbox.
                 Must be a valid DNS label (lowercase alphanumeric, hyphens allowed, max 63 chars).
             mount_path (str): Absolute path inside the container where the volume is mounted.
                 Must start with '/'.
-            access_mode (AccessMode): Volume access mode controlling read/write permissions.
-                - RW: Read-write access
-                - RO: Read-only access
-            host (HostBackend | Unset): Host path bind mount backend. Maps a directory on the host filesystem
+            host (Host | Unset): Host path bind mount backend. Maps a directory on the host filesystem
                 into the container. Only available when the runtime supports host mounts.
 
                 Security note: Host paths are restricted by server-side allowlist.
                 Users must specify paths under permitted prefixes.
-            pvc (PVCBackend | Unset): Kubernetes PersistentVolumeClaim mount backend. References an existing
+            pvc (PVC | Unset): Kubernetes PersistentVolumeClaim mount backend. References an existing
                 PVC in the same namespace as the sandbox pod.
 
                 Only available in Kubernetes runtime.
+            read_only (bool | Unset): If true, the volume is mounted as read-only. Defaults to false (read-write).
+                 Default: False.
             sub_path (str | Unset): Optional subdirectory under the backend path to mount.
                 Must be a relative path without '..' components.
     """
 
     name: str
     mount_path: str
-    access_mode: AccessMode
-    host: HostBackend | Unset = UNSET
-    pvc: PVCBackend | Unset = UNSET
+    host: Host | Unset = UNSET
+    pvc: PVC | Unset = UNSET
+    read_only: bool | Unset = False
     sub_path: str | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
 
         mount_path = self.mount_path
-
-        access_mode = self.access_mode.value
 
         host: dict[str, Any] | Unset = UNSET
         if not isinstance(self.host, Unset):
@@ -82,6 +78,8 @@ class Volume:
         if not isinstance(self.pvc, Unset):
             pvc = self.pvc.to_dict()
 
+        read_only = self.read_only
+
         sub_path = self.sub_path
 
         field_dict: dict[str, Any] = {}
@@ -90,13 +88,14 @@ class Volume:
             {
                 "name": name,
                 "mountPath": mount_path,
-                "accessMode": access_mode,
             }
         )
         if host is not UNSET:
             field_dict["host"] = host
         if pvc is not UNSET:
             field_dict["pvc"] = pvc
+        if read_only is not UNSET:
+            field_dict["readOnly"] = read_only
         if sub_path is not UNSET:
             field_dict["subPath"] = sub_path
 
@@ -104,38 +103,38 @@ class Volume:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.host_backend import HostBackend
-        from ..models.pvc_backend import PVCBackend
+        from ..models.host import Host
+        from ..models.pvc import PVC
 
         d = dict(src_dict)
         name = d.pop("name")
 
         mount_path = d.pop("mountPath")
 
-        access_mode = AccessMode(d.pop("accessMode"))
-
         _host = d.pop("host", UNSET)
-        host: HostBackend | Unset
+        host: Host | Unset
         if isinstance(_host, Unset):
             host = UNSET
         else:
-            host = HostBackend.from_dict(_host)
+            host = Host.from_dict(_host)
 
         _pvc = d.pop("pvc", UNSET)
-        pvc: PVCBackend | Unset
+        pvc: PVC | Unset
         if isinstance(_pvc, Unset):
             pvc = UNSET
         else:
-            pvc = PVCBackend.from_dict(_pvc)
+            pvc = PVC.from_dict(_pvc)
+
+        read_only = d.pop("readOnly", UNSET)
 
         sub_path = d.pop("subPath", UNSET)
 
         volume = cls(
             name=name,
             mount_path=mount_path,
-            access_mode=access_mode,
             host=host,
             pvc=pvc,
+            read_only=read_only,
             sub_path=sub_path,
         )
 

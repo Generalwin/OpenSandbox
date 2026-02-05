@@ -881,8 +881,8 @@ components:
         Storage mount definition for a sandbox. Each volume entry contains:
         - A unique name identifier
         - Exactly one backend struct (host, pvc, etc.) with backend-specific fields
-        - Common mount settings (mountPath, accessMode, subPath)
-      required: [name, mountPath, accessMode]
+        - Common mount settings (mountPath, readOnly, subPath)
+      required: [name, mountPath]
       properties:
         name:
           type: string
@@ -892,17 +892,20 @@ components:
           pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
           maxLength: 63
         host:
-          $ref: '#/components/schemas/HostBackend'
+          $ref: '#/components/schemas/Host'
         pvc:
-          $ref: '#/components/schemas/PVCBackend'
+          $ref: '#/components/schemas/PVC'
         mountPath:
           type: string
           description: |
             Absolute path inside the container where the volume is mounted.
             Must start with '/'.
           pattern: "^/.*"
-        accessMode:
-          $ref: '#/components/schemas/AccessMode'
+        readOnly:
+          type: boolean
+          description: |
+            If true, the volume is mounted as read-only. Defaults to false (read-write).
+          default: false
         subPath:
           type: string
           description: |
@@ -910,7 +913,7 @@ components:
             Must be a relative path without '..' components.
       additionalProperties: false
 
-    HostBackend:
+    Host:
       type: object
       description: |
         Host path bind mount backend. Maps a directory on the host filesystem
@@ -928,7 +931,7 @@ components:
           pattern: "^/.*"
       additionalProperties: false
 
-    PVCBackend:
+    PVC:
       type: object
       description: |
         Kubernetes PersistentVolumeClaim mount backend. References an existing
@@ -946,10 +949,3 @@ components:
           maxLength: 253
       additionalProperties: false
 
-    AccessMode:
-      type: string
-      description: |
-        Volume access mode controlling read/write permissions.
-        - RW: Read-write access
-        - RO: Read-only access
-      enum: [RW, RO]

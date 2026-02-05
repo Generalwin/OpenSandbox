@@ -18,95 +18,77 @@ import pytest
 from pydantic import ValidationError
 
 from src.api.schema import (
-    AccessMode,
     CreateSandboxRequest,
-    HostBackend,
+    Host,
     ImageSpec,
-    PVCBackend,
+    PVC,
     ResourceLimits,
     Volume,
 )
 
 
 # ============================================================================
-# AccessMode Tests
+# Host Tests
 # ============================================================================
 
 
-class TestAccessMode:
-    """Tests for AccessMode enum."""
-
-    def test_rw_value(self):
-        """RW should have correct value."""
-        assert AccessMode.RW.value == "RW"
-
-    def test_ro_value(self):
-        """RO should have correct value."""
-        assert AccessMode.RO.value == "RO"
-
-
-# ============================================================================
-# HostBackend Tests
-# ============================================================================
-
-
-class TestHostBackend:
-    """Tests for HostBackend model."""
+class TestHost:
+    """Tests for Host model."""
 
     def test_valid_path(self):
         """Valid absolute path should be accepted."""
-        backend = HostBackend(path="/data/opensandbox")
+        backend = Host(path="/data/opensandbox")
         assert backend.path == "/data/opensandbox"
 
     def test_path_required(self):
         """Path field should be required."""
         with pytest.raises(ValidationError) as exc_info:
-            HostBackend()  # type: ignore
+            Host()  # type: ignore
         errors = exc_info.value.errors()
         assert any(e["loc"] == ("path",) for e in errors)
 
     def test_serialization(self):
         """Model should serialize correctly."""
-        backend = HostBackend(path="/data/opensandbox")
+        backend = Host(path="/data/opensandbox")
         data = backend.model_dump()
         assert data == {"path": "/data/opensandbox"}
 
     def test_deserialization(self):
         """Model should deserialize correctly."""
         data = {"path": "/data/opensandbox"}
-        backend = HostBackend.model_validate(data)
+        backend = Host.model_validate(data)
         assert backend.path == "/data/opensandbox"
 
 
 # ============================================================================
-# PVCBackend Tests
+# PVC Tests
 # ============================================================================
 
 
-class TestPVCBackend:
-    """Tests for PVCBackend model."""
+class TestPVC:
+    """Tests for PVC model."""
 
     def test_valid_claim_name(self):
         """Valid claim name should be accepted."""
-        backend = PVCBackend(claim_name="my-pvc")
+        backend = PVC(claim_name="my-pvc")
         assert backend.claim_name == "my-pvc"
 
     def test_claim_name_alias(self):
         """claimName alias should work."""
         data = {"claimName": "my-pvc"}
-        backend = PVCBackend.model_validate(data)
+        backend = PVC.model_validate(data)
         assert backend.claim_name == "my-pvc"
 
     def test_serialization_uses_alias(self):
         """Serialization should use camelCase alias."""
-        backend = PVCBackend(claim_name="my-pvc")
+        backend = PVC(claim_name="my-pvc")
         data = backend.model_dump(by_alias=True)
         assert data == {"claimName": "my-pvc"}
 
     def test_claim_name_required(self):
         """claim_name field should be required."""
         with pytest.raises(ValidationError) as exc_info:
-            PVCBackend()  # type: ignore
+            PVC()  # type: ignore
         errors = exc_info.value.errors()
         assert any("claim_name" in str(e["loc"]) or "claimName" in str(e["loc"]) for e in errors)
 
@@ -123,15 +105,15 @@ class TestVolume:
         """Valid host volume should be accepted."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
         )
         assert volume.name == "workdir"
         assert volume.host is not None
         assert volume.host.path == "/data/opensandbox"
         assert volume.mount_path == "/mnt/work"
-        assert volume.access_mode == AccessMode.RW
+        assert volume.read_only is False
         assert volume.pvc is None
         assert volume.sub_path is None
 
@@ -139,24 +121,24 @@ class TestVolume:
         """Valid PVC volume should be accepted."""
         volume = Volume(
             name="models",
-            pvc=PVCBackend(claim_name="shared-models-pvc"),
+            pvc=PVC(claim_name="shared-models-pvc"),
             mount_path="/mnt/models",
-            access_mode=AccessMode.RO,
+            read_only=True,
         )
         assert volume.name == "models"
         assert volume.pvc is not None
         assert volume.pvc.claim_name == "shared-models-pvc"
         assert volume.mount_path == "/mnt/models"
-        assert volume.access_mode == AccessMode.RO
+        assert volume.read_only is True
         assert volume.host is None
 
     def test_valid_volume_with_subpath(self):
         """Volume with subPath should be accepted."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
             sub_path="task-001",
         )
         assert volume.sub_path == "task-001"
@@ -167,7 +149,7 @@ class TestVolume:
             Volume(
                 name="workdir",
                 mount_path="/mnt/work",
-                access_mode=AccessMode.RW,
+                read_only=False,
             )
         # Check that validation error mentions backend
         error_message = str(exc_info.value)
@@ -178,10 +160,10 @@ class TestVolume:
         with pytest.raises(ValidationError) as exc_info:
             Volume(
                 name="workdir",
-                host=HostBackend(path="/data/opensandbox"),
-                pvc=PVCBackend(claim_name="my-pvc"),
+                host=Host(path="/data/opensandbox"),
+                pvc=PVC(claim_name="my-pvc"),
                 mount_path="/mnt/work",
-                access_mode=AccessMode.RW,
+                read_only=False,
             )
         # Check that validation error mentions backend
         error_message = str(exc_info.value)
@@ -191,9 +173,9 @@ class TestVolume:
         """Host volume should serialize correctly with camelCase aliases."""
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode=AccessMode.RW,
+            read_only=False,
             sub_path="task-001",
         )
         data = volume.model_dump(by_alias=True, exclude_none=True)
@@ -201,7 +183,7 @@ class TestVolume:
             "name": "workdir",
             "host": {"path": "/data/opensandbox"},
             "mountPath": "/mnt/work",
-            "accessMode": "RW",
+            "readOnly": False,
             "subPath": "task-001",
         }
 
@@ -209,16 +191,16 @@ class TestVolume:
         """PVC volume should serialize correctly with camelCase aliases."""
         volume = Volume(
             name="models",
-            pvc=PVCBackend(claim_name="shared-models-pvc"),
+            pvc=PVC(claim_name="shared-models-pvc"),
             mount_path="/mnt/models",
-            access_mode=AccessMode.RO,
+            read_only=True,
         )
         data = volume.model_dump(by_alias=True, exclude_none=True)
         assert data == {
             "name": "models",
             "pvc": {"claimName": "shared-models-pvc"},
             "mountPath": "/mnt/models",
-            "accessMode": "RO",
+            "readOnly": True,
         }
 
     def test_deserialization_host_volume(self):
@@ -227,7 +209,7 @@ class TestVolume:
             "name": "workdir",
             "host": {"path": "/data/opensandbox"},
             "mountPath": "/mnt/work",
-            "accessMode": "RW",
+            "readOnly": False,
             "subPath": "task-001",
         }
         volume = Volume.model_validate(data)
@@ -235,7 +217,7 @@ class TestVolume:
         assert volume.host is not None
         assert volume.host.path == "/data/opensandbox"
         assert volume.mount_path == "/mnt/work"
-        assert volume.access_mode == AccessMode.RW
+        assert volume.read_only is False
         assert volume.sub_path == "task-001"
 
     def test_deserialization_pvc_volume(self):
@@ -244,14 +226,14 @@ class TestVolume:
             "name": "models",
             "pvc": {"claimName": "shared-models-pvc"},
             "mountPath": "/mnt/models",
-            "accessMode": "RO",
+            "readOnly": True,
         }
         volume = Volume.model_validate(data)
         assert volume.name == "models"
         assert volume.pvc is not None
         assert volume.pvc.claim_name == "shared-models-pvc"
         assert volume.mount_path == "/mnt/models"
-        assert volume.access_mode == AccessMode.RO
+        assert volume.read_only is True
 
 
 # ============================================================================
@@ -293,9 +275,9 @@ class TestCreateSandboxRequestWithVolumes:
             volumes=[
                 Volume(
                     name="workdir",
-                    host=HostBackend(path="/data/opensandbox"),
+                    host=Host(path="/data/opensandbox"),
                     mount_path="/mnt/work",
-                    access_mode=AccessMode.RW,
+                    read_only=False,
                 )
             ],
         )
@@ -313,9 +295,9 @@ class TestCreateSandboxRequestWithVolumes:
             volumes=[
                 Volume(
                     name="models",
-                    pvc=PVCBackend(claim_name="shared-models-pvc"),
+                    pvc=PVC(claim_name="shared-models-pvc"),
                     mount_path="/mnt/models",
-                    access_mode=AccessMode.RO,
+                    read_only=True,
                 )
             ],
         )
@@ -334,15 +316,15 @@ class TestCreateSandboxRequestWithVolumes:
             volumes=[
                 Volume(
                     name="workdir",
-                    host=HostBackend(path="/data/opensandbox"),
+                    host=Host(path="/data/opensandbox"),
                     mount_path="/mnt/work",
-                    access_mode=AccessMode.RW,
+                    read_only=False,
                 ),
                 Volume(
                     name="models",
-                    pvc=PVCBackend(claim_name="shared-models-pvc"),
+                    pvc=PVC(claim_name="shared-models-pvc"),
                     mount_path="/mnt/models",
-                    access_mode=AccessMode.RO,
+                    read_only=True,
                 ),
             ],
         )
@@ -359,9 +341,9 @@ class TestCreateSandboxRequestWithVolumes:
             volumes=[
                 Volume(
                     name="workdir",
-                    host=HostBackend(path="/data/opensandbox"),
+                    host=Host(path="/data/opensandbox"),
                     mount_path="/mnt/work",
-                    access_mode=AccessMode.RW,
+                    read_only=False,
                     sub_path="task-001",
                 )
             ],
@@ -371,7 +353,7 @@ class TestCreateSandboxRequestWithVolumes:
         assert len(data["volumes"]) == 1
         assert data["volumes"][0]["name"] == "workdir"
         assert data["volumes"][0]["mountPath"] == "/mnt/work"
-        assert data["volumes"][0]["accessMode"] == "RW"
+        assert data["volumes"][0]["readOnly"] is False
         assert data["volumes"][0]["subPath"] == "task-001"
 
     def test_deserialization_with_volumes(self):
@@ -386,14 +368,14 @@ class TestCreateSandboxRequestWithVolumes:
                     "name": "workdir",
                     "host": {"path": "/data/opensandbox"},
                     "mountPath": "/mnt/work",
-                    "accessMode": "RW",
+                    "readOnly": False,
                     "subPath": "task-001",
                 },
                 {
                     "name": "models",
                     "pvc": {"claimName": "shared-models-pvc"},
                     "mountPath": "/mnt/models",
-                    "accessMode": "RO",
+                    "readOnly": True,
                 },
             ],
         }
@@ -406,7 +388,7 @@ class TestCreateSandboxRequestWithVolumes:
         assert request.volumes[0].host is not None
         assert request.volumes[0].host.path == "/data/opensandbox"
         assert request.volumes[0].mount_path == "/mnt/work"
-        assert request.volumes[0].access_mode == AccessMode.RW
+        assert request.volumes[0].read_only is False
         assert request.volumes[0].sub_path == "task-001"
 
         # Check PVC volume
@@ -414,4 +396,4 @@ class TestCreateSandboxRequestWithVolumes:
         assert request.volumes[1].pvc is not None
         assert request.volumes[1].pvc.claim_name == "shared-models-pvc"
         assert request.volumes[1].mount_path == "/mnt/models"
-        assert request.volumes[1].access_mode == AccessMode.RO
+        assert request.volumes[1].read_only is True

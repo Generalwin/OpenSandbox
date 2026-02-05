@@ -67,17 +67,12 @@ export interface NetworkPolicy extends Record<string, unknown> {
 // ============================================================================
 
 /**
- * Volume access mode controlling read/write permissions.
- */
-export type AccessMode = "RW" | "RO";
-
-/**
  * Host path bind mount backend.
  *
  * Maps a directory on the host filesystem into the container.
  * Only available when the runtime supports host mounts.
  */
-export interface HostBackend extends Record<string, unknown> {
+export interface Host extends Record<string, unknown> {
   /**
    * Absolute path on the host filesystem to mount.
    */
@@ -90,7 +85,7 @@ export interface HostBackend extends Record<string, unknown> {
  * References an existing PVC in the same namespace as the sandbox pod.
  * Only available in Kubernetes runtime.
  */
-export interface PVCBackend extends Record<string, unknown> {
+export interface PVC extends Record<string, unknown> {
   /**
    * Name of the PersistentVolumeClaim in the same namespace.
    */
@@ -103,7 +98,7 @@ export interface PVCBackend extends Record<string, unknown> {
  * Each volume entry contains:
  * - A unique name identifier
  * - Exactly one backend (host, pvc) with backend-specific fields
- * - Common mount settings (mountPath, accessMode, subPath)
+ * - Common mount settings (mountPath, readOnly, subPath)
  */
 export interface Volume extends Record<string, unknown> {
   /**
@@ -113,19 +108,19 @@ export interface Volume extends Record<string, unknown> {
   /**
    * Host path bind mount backend (mutually exclusive with pvc).
    */
-  host?: HostBackend;
+  host?: Host;
   /**
    * Kubernetes PVC mount backend (mutually exclusive with host).
    */
-  pvc?: PVCBackend;
+  pvc?: PVC;
   /**
    * Absolute path inside the container where the volume is mounted.
    */
   mountPath: string;
   /**
-   * Volume access mode (RW or RO).
+   * If true, the volume is mounted as read-only. Defaults to false (read-write).
    */
-  accessMode: AccessMode;
+  readOnly?: boolean;
   /**
    * Optional subdirectory under the backend path to mount.
    */

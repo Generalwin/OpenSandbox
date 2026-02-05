@@ -137,7 +137,7 @@ class NetworkPolicy(BaseModel):
 # ============================================================================
 
 
-class HostBackend(BaseModel):
+class Host(BaseModel):
     """
     Host path bind mount backend.
 
@@ -157,7 +157,7 @@ class HostBackend(BaseModel):
         return v
 
 
-class PVCBackend(BaseModel):
+class PVC(BaseModel):
     """
     Kubernetes PersistentVolumeClaim mount backend.
 
@@ -187,34 +187,33 @@ class Volume(BaseModel):
     Each volume entry contains:
     - A unique name identifier
     - Exactly one backend (host, pvc) with backend-specific fields
-    - Common mount settings (mount_path, access_mode, sub_path)
+    - Common mount settings (mount_path, read_only, sub_path)
 
     Usage:
-        # Host path mount
+        # Host path mount (read-write by default)
         volume = Volume(
             name="workdir",
-            host=HostBackend(path="/data/opensandbox"),
+            host=Host(path="/data/opensandbox"),
             mount_path="/mnt/work",
-            access_mode="RW",
         )
 
-        # PVC mount
+        # PVC mount (read-only)
         volume = Volume(
             name="models",
-            pvc=PVCBackend(claim_name="shared-models-pvc"),
+            pvc=PVC(claim_name="shared-models-pvc"),
             mount_path="/mnt/models",
-            access_mode="RO",
+            read_only=True,
         )
     """
 
     name: str = Field(
         description="Unique identifier for the volume within the sandbox."
     )
-    host: HostBackend | None = Field(
+    host: Host | None = Field(
         default=None,
         description="Host path bind mount backend.",
     )
-    pvc: PVCBackend | None = Field(
+    pvc: PVC | None = Field(
         default=None,
         description="Kubernetes PersistentVolumeClaim mount backend.",
     )
@@ -222,9 +221,10 @@ class Volume(BaseModel):
         description="Absolute path inside the container where the volume is mounted.",
         alias="mountPath",
     )
-    access_mode: Literal["RW", "RO"] = Field(
-        description="Volume access mode (RW or RO).",
-        alias="accessMode",
+    read_only: bool = Field(
+        default=False,
+        description="If true, the volume is mounted as read-only. Defaults to false (read-write).",
+        alias="readOnly",
     )
     sub_path: str | None = Field(
         default=None,

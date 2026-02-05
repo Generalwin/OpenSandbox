@@ -21,7 +21,6 @@ enforce the same preconditions before performing runtime-specific work.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
 
@@ -305,23 +304,31 @@ def ensure_valid_host_path(
             },
         )
 
-    # Normalize the path to resolve any .. or . components
-    normalized = os.path.normpath(path)
-    if normalized != path.rstrip("/"):
-        # Path contains components that would be normalized differently
-        # This could indicate path traversal attempts
+    # Reject path traversal components
+    if "/.." in path or path == "/..":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": SandboxErrorCodes.INVALID_HOST_PATH,
-                "message": f"Host path '{path}' contains invalid path components. Use normalized path '{normalized}'.",
+                "message": f"Host path '{path}' contains path traversal component '..'.",
+            },
+        )
+
+    # Reject non-normalized paths (double slashes, trailing slashes except root)
+    if "//" in path or (len(path) > 1 and path.endswith("/")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": SandboxErrorCodes.INVALID_HOST_PATH,
+                "message": f"Host path '{path}' is not normalized. Remove redundant slashes.",
             },
         )
 
     # Check against allowed prefixes if provided
     if allowed_prefixes is not None:
         is_allowed = any(
-            normalized == prefix or normalized.startswith(prefix.rstrip("/") + "/")
+            path == prefix.rstrip("/")
+            or path.startswith(prefix.rstrip("/") + "/")
             for prefix in allowed_prefixes
         )
         if not is_allowed:
