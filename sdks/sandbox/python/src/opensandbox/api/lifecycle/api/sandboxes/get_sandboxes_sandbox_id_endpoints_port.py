@@ -24,23 +24,29 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.endpoint import Endpoint
 from ...models.error_response import ErrorResponse
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     sandbox_id: str,
     port: int,
-    use_server_proxy: bool = False,
+    *,
+    use_server_proxy: bool | Unset = False,
 ) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+
+    params["use_server_proxy"] = use_server_proxy
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/sandboxes/{sandbox_id}/endpoints/{port}".format(
             sandbox_id=quote(str(sandbox_id), safe=""),
             port=quote(str(port), safe=""),
         ),
+        "params": params,
     }
-    if use_server_proxy:
-        _kwargs["params"] = {"use_server_proxy": use_server_proxy}
 
     return _kwargs
 
@@ -93,9 +99,9 @@ def _build_response(
 def sync_detailed(
     sandbox_id: str,
     port: int,
-    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
+    use_server_proxy: bool | Unset = False,
 ) -> Response[Endpoint | ErrorResponse]:
     """Get sandbox access endpoint
 
@@ -106,6 +112,7 @@ def sync_detailed(
     Args:
         sandbox_id (str):
         port (int):
+        use_server_proxy (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -131,9 +138,9 @@ def sync_detailed(
 def sync(
     sandbox_id: str,
     port: int,
-    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
+    use_server_proxy: bool | Unset = False,
 ) -> Endpoint | ErrorResponse | None:
     """Get sandbox access endpoint
 
@@ -144,6 +151,7 @@ def sync(
     Args:
         sandbox_id (str):
         port (int):
+        use_server_proxy (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -156,17 +164,17 @@ def sync(
     return sync_detailed(
         sandbox_id=sandbox_id,
         port=port,
-        use_server_proxy=use_server_proxy,
         client=client,
+        use_server_proxy=use_server_proxy,
     ).parsed
 
 
 async def asyncio_detailed(
     sandbox_id: str,
     port: int,
-    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
+    use_server_proxy: bool | Unset = False,
 ) -> Response[Endpoint | ErrorResponse]:
     """Get sandbox access endpoint
 
@@ -177,6 +185,7 @@ async def asyncio_detailed(
     Args:
         sandbox_id (str):
         port (int):
+        use_server_proxy (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -200,9 +209,9 @@ async def asyncio_detailed(
 async def asyncio(
     sandbox_id: str,
     port: int,
-    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
+    use_server_proxy: bool | Unset = False,
 ) -> Endpoint | ErrorResponse | None:
     """Get sandbox access endpoint
 
@@ -213,6 +222,7 @@ async def asyncio(
     Args:
         sandbox_id (str):
         port (int):
+        use_server_proxy (bool | Unset):  Default: False.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -226,7 +236,7 @@ async def asyncio(
         await asyncio_detailed(
             sandbox_id=sandbox_id,
             port=port,
-            use_server_proxy=use_server_proxy,
             client=client,
+            use_server_proxy=use_server_proxy,
         )
     ).parsed
