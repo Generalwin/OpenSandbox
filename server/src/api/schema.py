@@ -20,7 +20,6 @@ for request/response validation and serialization.
 """
 
 from datetime import datetime
-from enum import Enum
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, RootModel, model_validator
