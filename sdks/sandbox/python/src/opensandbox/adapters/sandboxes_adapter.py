@@ -231,6 +231,7 @@ class SandboxesAdapter(Sandboxes):
                     client=client,
                     sandbox_id=sandbox_id,
                     port=port,
+                    use_server_proxy=self.connection_config.use_server_proxy,
                 )
             )
 
@@ -240,12 +241,7 @@ class SandboxesAdapter(Sandboxes):
 
             from opensandbox.api.lifecycle.models import Endpoint
             parsed = require_parsed(response_obj, Endpoint, "Get endpoint")
-            sandbox_endpoint = SandboxModelConverter.to_sandbox_endpoint(parsed)
-            if self.connection_config.use_server_proxy:
-                sandbox_endpoint.endpoint = self.connection_config.get_execd_url(
-                    sandbox_endpoint.endpoint
-                )
-            return sandbox_endpoint
+            return SandboxModelConverter.to_sandbox_endpoint(parsed)
 
         except Exception as e:
             logger.error(

@@ -30,6 +30,7 @@ from ...types import Response
 def _get_kwargs(
     sandbox_id: str,
     port: int,
+    use_server_proxy: bool = False,
 ) -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -38,6 +39,8 @@ def _get_kwargs(
             port=quote(str(port), safe=""),
         ),
     }
+    if use_server_proxy:
+        _kwargs["params"] = {"use_server_proxy": use_server_proxy}
 
     return _kwargs
 
@@ -90,6 +93,7 @@ def _build_response(
 def sync_detailed(
     sandbox_id: str,
     port: int,
+    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Endpoint | ErrorResponse]:
@@ -114,6 +118,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         sandbox_id=sandbox_id,
         port=port,
+        use_server_proxy=use_server_proxy,
     )
 
     response = client.get_httpx_client().request(
@@ -126,6 +131,7 @@ def sync_detailed(
 def sync(
     sandbox_id: str,
     port: int,
+    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
 ) -> Endpoint | ErrorResponse | None:
@@ -150,6 +156,7 @@ def sync(
     return sync_detailed(
         sandbox_id=sandbox_id,
         port=port,
+        use_server_proxy=use_server_proxy,
         client=client,
     ).parsed
 
@@ -157,6 +164,7 @@ def sync(
 async def asyncio_detailed(
     sandbox_id: str,
     port: int,
+    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Endpoint | ErrorResponse]:
@@ -181,6 +189,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         sandbox_id=sandbox_id,
         port=port,
+        use_server_proxy=use_server_proxy,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -191,6 +200,7 @@ async def asyncio_detailed(
 async def asyncio(
     sandbox_id: str,
     port: int,
+    use_server_proxy: bool = False,
     *,
     client: AuthenticatedClient | Client,
 ) -> Endpoint | ErrorResponse | None:
@@ -216,6 +226,7 @@ async def asyncio(
         await asyncio_detailed(
             sandbox_id=sandbox_id,
             port=port,
+            use_server_proxy=use_server_proxy,
             client=client,
         )
     ).parsed

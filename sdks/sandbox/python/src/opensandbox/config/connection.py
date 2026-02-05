@@ -164,9 +164,3 @@ class ConnectionConfig(BaseModel):
         ):
             return f"{domain}/{self._API_VERSION}"
         return f"{self.protocol}://{domain}/{self._API_VERSION}"
-
-    def get_execd_url(self, endpoint: str) -> str:
-        """Get the actual URL for execd requests."""
-        if self.use_server_proxy:
-            return f"{self.get_domain()}/proxy/{endpoint}"
-        return endpoint

@@ -379,8 +379,10 @@ async def renew_sandbox_expiration(
     },
 )
 async def get_sandbox_endpoint(
+    request: Request,
     sandbox_id: str,
     port: int,
+    use_server_proxy: bool = Query(False, description="Whether to return a server-proxied URL"),
     x_request_id: Optional[str] = Header(None, alias="X-Request-ID"),
 ) -> Endpoint:
     """
@@ -391,8 +393,10 @@ async def get_sandbox_endpoint(
     for the endpoint to be available.
 
     Args:
+        request: FastAPI request object
         sandbox_id: Unique sandbox identifier
         port: Port number where the service is listening inside the sandbox (1-65535)
+        use_server_proxy: Whether to return a server-proxied URL
         x_request_id: Unique request identifier for tracing
 
     Returns:
@@ -402,20 +406,30 @@ async def get_sandbox_endpoint(
         HTTPException: If sandbox not found or endpoint not available
     """
     # Delegate to the service layer for endpoint resolution
-    return sandbox_service.get_endpoint(sandbox_id, port)
+    endpoint = sandbox_service.get_endpoint(sandbox_id, port)
+
+    if use_server_proxy:
+        # Construct proxy URL
+        base_url = str(request.base_url).rstrip("/")
+        base_url = base_url.replace("https://", "").replace("http://", "")
+        endpoint.endpoint = f"{base_url}/sandboxes/{sandbox_id}/proxy/{port}"
+
+    return endpoint
 
 
 @router.api_route(
-    "/proxy/{endpoint}/{full_path:path}",
+    "/sandboxes/{sandbox_id}/proxy/{port}/{full_path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
 )
-async def proxy_request(request: Request, endpoint: str, full_path: str):
+async def proxy_sandbox_endpoint_request(request: Request, sandbox_id: str, port: int, full_path: str):
     """
     Receives all incoming requests, determines the target sandbox from path parameter,
     and asynchronously proxies the request to it.
     """
 
-    target_host = f"{endpoint}"
+    endpoint = sandbox_service.get_endpoint(sandbox_id, port)
+
+    target_host = endpoint.endpoint
     target_url = f"http://{target_host}/{full_path}"
 
     client: httpx.AsyncClient = request.app.state.http_client
