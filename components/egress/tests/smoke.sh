@@ -38,6 +38,7 @@ docker run -d --name "${containerName}" \
   --cap-add=NET_ADMIN \
   --sysctl net.ipv6.conf.all.disable_ipv6=1 \
   --sysctl net.ipv6.conf.default.disable_ipv6=1 \
+  -e OPENSANDBOX_EGRESS_MODE=dns+nft \
   -p ${POLICY_PORT}:18080 \
   "${IMG}"
 

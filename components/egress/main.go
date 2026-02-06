@@ -137,12 +137,12 @@ func isTruthy(v string) bool {
 func parseMode() string {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv(constants.EnvEgressMode)))
 	switch mode {
-	case "", constants.PolicyDnsNft:
-		return constants.PolicyDnsNft
-	case constants.PolicyDnsOnly:
+	case "", constants.PolicyDnsOnly:
 		return constants.PolicyDnsOnly
-	default:
-		log.Printf("invalid %s=%s, falling back to dns+nft", constants.EnvEgressMode, mode)
+	case constants.PolicyDnsNft:
 		return constants.PolicyDnsNft
+	default:
+		log.Printf("invalid %s=%s, falling back to dns", constants.EnvEgressMode, mode)
+		return constants.PolicyDnsOnly
 	}
 }

@@ -40,9 +40,9 @@ The egress control is implemented as a **Sidecar** that shares the network names
 - HTTP service:
   - Listen address: `OPENSANDBOX_EGRESS_HTTP_ADDR` (default `:18080`).
   - Auth: `OPENSANDBOX_EGRESS_TOKEN` with header `OPENSANDBOX-EGRESS-AUTH: <token>`; if unset, endpoint is open.
-- Mode (`OPENSANDBOX_EGRESS_MODE`, default `dns+nft`):
-  - `dns+nft`: enable nftables; if nft apply fails, fallback to `dns`.
-  - `dns`: DNS proxy only, no nftables.
+- Mode (`OPENSANDBOX_EGRESS_MODE`, default `dns`):
+  - `dns`: DNS proxy only, no nftables (IP/CIDR rules have no effect at L2).
+  - `dns+nft`: enable nftables; if nft apply fails, fallback to `dns`. IP/CIDR enforcement and DoH/DoT blocking require this mode.
 - DoH/DoT blocking:
   - DoT (tcp/udp 853) blocked by default.
   - Optional DoH over 443: `OPENSANDBOX_EGRESS_BLOCK_DOH_443=true`. If enabled without blocklist, all 443 is dropped.
