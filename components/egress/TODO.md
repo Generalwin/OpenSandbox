@@ -19,9 +19,9 @@
 7) IPv6 & tests  
    - Handle IPv6 support or explicit non-support.  
    - Unit/integration tests: interception, graceful degrade, nftables, DoH blocking, hostNetwork rejection.
+8) Dynamic IP insertion from DNS answers (TTL-learned) and dynamic L2 isolation.
 
 ## No goals (explicitly excluded)
-- Dynamic IP insertion from DNS answers (TTL-learned) and dynamic L2 isolation.
 - Capability probing & mode exposure (CAP_NET_ADMIN/nft detection, mode surfacing).
 - Policy expansion: `require_full_isolation` and richer validation errors.
 
