@@ -140,7 +140,6 @@ mode = "direct"  # Docker 运行时仅支持 direct（直连，无 L7 网关）
   - `gateway.route.mode`：`wildcard`（域名泛匹配）、`uri`（基于路径前缀）；`header` 模式暂未支持。
   - 返回示例：
     - `wildcard`：`<sandbox-id>-<port>.example.com/path/to/request`
-    - `header`：`10.0.0.1:8000/path/to/request`，请求头 `OPEN-SANDBOX-INGRESS: <sandbox-id>-<port>`
     - `uri`：`10.0.0.1:8000/<sandbox-id>/<port>/path/to/request`
 
 ### Egress sidecar 配置与使用
