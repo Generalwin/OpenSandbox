@@ -3,7 +3,7 @@ title: Pluggable Secure Container Runtime Support
 authors:
   - "@hittyt"
 creation-date: 2026-02-05
-last-updated: 2026-02-06
+last-updated: 2026-02-09
 status: draft
 ---
 
@@ -193,27 +193,46 @@ docker_runtime = "runsc"
 k8s_runtime_class = "gvisor"
 ```
 
-**Configuration examples for common setups:**
+**Configuration examples** (pick ONE per server, these are separate config files):
+
+Example 1 — gVisor on Docker:
 
 ```toml
-# Example: gVisor on Docker
+# ~/.sandbox.toml
+[runtime]
+type = "docker"
+execd_image = "opensandbox/execd:v1.0.5"
+
 [secure_runtime]
 type = "gvisor"
 docker_runtime = "runsc"
 k8s_runtime_class = "gvisor"
+```
 
-# Example: Kata Containers (QEMU) on Kubernetes
+Example 2 — Kata Containers (QEMU) on Kubernetes:
+
+```toml
+# ~/.sandbox.toml
+[runtime]
+type = "kubernetes"
+execd_image = "opensandbox/execd:v1.0.5"
+
 [secure_runtime]
 type = "kata"
 docker_runtime = "kata-runtime"
 k8s_runtime_class = "kata-qemu"
+```
 
-# Example: Kata + Firecracker on Kubernetes (not supported in Docker mode)
-# Firecracker is a VMM, not an OCI runtime. It cannot serve as a CRI
-# implementation directly. This OSEP recommends using Firecracker via
-# Kata Containers (kata-fc handler), which is the mature, production-ready
-# approach. The alternative (firecracker-containerd) is less actively
-# maintained and not recommended.
+Example 3 — Kata + Firecracker on Kubernetes:
+
+> Firecracker is a VMM, not an OCI runtime. It cannot serve as a CRI implementation directly. This OSEP recommends using Firecracker via Kata Containers (`kata-fc` handler), which is the mature, production-ready approach. The alternative (`firecracker-containerd`) is less actively maintained and not recommended.
+
+```toml
+# ~/.sandbox.toml
+[runtime]
+type = "kubernetes"
+execd_image = "opensandbox/execd:v1.0.5"
+
 [secure_runtime]
 type = "firecracker"
 docker_runtime = ""              # Not supported in Docker mode
