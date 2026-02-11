@@ -42,7 +42,7 @@ from opensandbox.models.filesystem import (
     SetPermissionEntry,
     WriteEntry,
 )
-from opensandbox.models.sandboxes import Host, NetworkPolicy, NetworkRule, SandboxImageSpec, Volume
+from opensandbox.models.sandboxes import Host, NetworkPolicy, NetworkRule, PVC, SandboxImageSpec, Volume
 
 from tests.base_e2e_test import create_connection_config_sync, get_sandbox_image
 
@@ -402,6 +402,200 @@ class TestSandboxE2ESync:
                 pass
 
         logger.info("TEST 1c PASSED: Read-only host volume mount test completed successfully")
+
+    @pytest.mark.timeout(120)
+    @pytest.mark.order(1)
+    def test_01d_pvc_named_volume_mount(self) -> None:
+        """Test creating a sandbox with a PVC (Docker named volume) mount (sync)."""
+        logger.info("=" * 80)
+        logger.info("TEST 1d: Creating sandbox with PVC named volume mount (sync)")
+        logger.info("=" * 80)
+
+        pvc_volume_name = "opensandbox-e2e-pvc-test"
+        container_mount_path = "/mnt/pvc-data"
+
+        cfg = create_connection_config_sync()
+        sandbox = SandboxSync.create(
+            image=SandboxImageSpec(get_sandbox_image()),
+            connection_config=cfg,
+            timeout=timedelta(minutes=2),
+            ready_timeout=timedelta(seconds=30),
+            volumes=[
+                Volume(
+                    name="test-pvc-vol",
+                    pvc=PVC(claimName=pvc_volume_name),
+                    mountPath=container_mount_path,
+                    readOnly=False,
+                ),
+            ],
+        )
+        try:
+            logger.info("✓ Sandbox with PVC volume created: %s", sandbox.id)
+
+            # Step 1: Verify the marker file seeded into the named volume is readable
+            result = sandbox.commands.run(f"cat {container_mount_path}/marker.txt")
+            assert result.error is None, f"Failed to read marker file: {result.error}"
+            assert len(result.logs.stdout) == 1
+            assert result.logs.stdout[0].text == "pvc-marker-data"
+            logger.info("✓ PVC marker file read successfully inside sandbox")
+
+            # Step 2: Write a file from inside the sandbox to the named volume
+            result = sandbox.commands.run(
+                f"echo 'written-to-pvc' > {container_mount_path}/pvc-output.txt"
+            )
+            assert result.error is None, f"Failed to write file: {result.error}"
+
+            # Step 3: Verify the written file is readable
+            result = sandbox.commands.run(f"cat {container_mount_path}/pvc-output.txt")
+            assert result.error is None
+            assert len(result.logs.stdout) == 1
+            assert result.logs.stdout[0].text == "written-to-pvc"
+            logger.info("✓ File written and verified inside sandbox via PVC mount")
+
+            # Step 4: Verify the mount path is a proper directory
+            result = sandbox.commands.run(f"test -d {container_mount_path} && echo OK")
+            assert result.error is None
+            assert len(result.logs.stdout) == 1
+            assert result.logs.stdout[0].text == "OK"
+            logger.info("✓ PVC mount path is a valid directory")
+
+        finally:
+            try:
+                sandbox.kill()
+            except Exception:
+                pass
+            sandbox.close()
+            try:
+                cfg.transport.close()
+            except Exception:
+                pass
+
+        logger.info("TEST 1d PASSED: PVC named volume mount test completed successfully")
+
+    @pytest.mark.timeout(120)
+    @pytest.mark.order(1)
+    def test_01e_pvc_named_volume_mount_readonly(self) -> None:
+        """Test creating a sandbox with a read-only PVC (Docker named volume) mount (sync)."""
+        logger.info("=" * 80)
+        logger.info("TEST 1e: Creating sandbox with read-only PVC named volume mount (sync)")
+        logger.info("=" * 80)
+
+        pvc_volume_name = "opensandbox-e2e-pvc-test"
+        container_mount_path = "/mnt/pvc-data-ro"
+
+        cfg = create_connection_config_sync()
+        sandbox = SandboxSync.create(
+            image=SandboxImageSpec(get_sandbox_image()),
+            connection_config=cfg,
+            timeout=timedelta(minutes=2),
+            ready_timeout=timedelta(seconds=30),
+            volumes=[
+                Volume(
+                    name="test-pvc-vol-ro",
+                    pvc=PVC(claimName=pvc_volume_name),
+                    mountPath=container_mount_path,
+                    readOnly=True,
+                ),
+            ],
+        )
+        try:
+            logger.info("✓ Sandbox with read-only PVC volume created: %s", sandbox.id)
+
+            # Step 1: Verify the marker file is readable
+            result = sandbox.commands.run(f"cat {container_mount_path}/marker.txt")
+            assert result.error is None, f"Failed to read marker file: {result.error}"
+            assert len(result.logs.stdout) == 1
+            assert result.logs.stdout[0].text == "pvc-marker-data"
+            logger.info("✓ PVC marker file read successfully in read-only mount")
+
+            # Step 2: Verify writing is denied on read-only mount
+            result = sandbox.commands.run(
+                f"touch {container_mount_path}/should-fail.txt"
+            )
+            assert result.error is not None, "Write should fail on read-only PVC mount"
+            logger.info("✓ Write correctly denied on read-only PVC mount")
+
+        finally:
+            try:
+                sandbox.kill()
+            except Exception:
+                pass
+            sandbox.close()
+            try:
+                cfg.transport.close()
+            except Exception:
+                pass
+
+        logger.info("TEST 1e PASSED: Read-only PVC named volume mount test completed successfully")
+
+    @pytest.mark.timeout(120)
+    @pytest.mark.order(1)
+    def test_01f_pvc_named_volume_subpath_mount(self) -> None:
+        """Test creating a sandbox with a PVC named volume mount using subPath (sync)."""
+        logger.info("=" * 80)
+        logger.info("TEST 1f: Creating sandbox with PVC named volume subPath mount (sync)")
+        logger.info("=" * 80)
+
+        pvc_volume_name = "opensandbox-e2e-pvc-test"
+        container_mount_path = "/mnt/train"
+
+        cfg = create_connection_config_sync()
+        sandbox = SandboxSync.create(
+            image=SandboxImageSpec(get_sandbox_image()),
+            connection_config=cfg,
+            timeout=timedelta(minutes=2),
+            ready_timeout=timedelta(seconds=30),
+            volumes=[
+                Volume(
+                    name="test-pvc-subpath",
+                    pvc=PVC(claimName=pvc_volume_name),
+                    mountPath=container_mount_path,
+                    readOnly=False,
+                    subPath="datasets/train",
+                ),
+            ],
+        )
+        try:
+            logger.info("✓ Sandbox with PVC subPath volume created: %s", sandbox.id)
+
+            # Step 1: Verify the subpath marker file is readable
+            result = sandbox.commands.run(f"cat {container_mount_path}/marker.txt")
+            assert result.error is None, f"Failed to read subpath marker file: {result.error}"
+            assert len(result.logs.stdout) == 1
+            assert result.logs.stdout[0].text == "pvc-subpath-marker"
+            logger.info("✓ SubPath marker file read successfully")
+
+            # Step 2: Verify we only see the subpath contents (not the full volume)
+            result = sandbox.commands.run(f"ls {container_mount_path}/")
+            assert result.error is None
+            stdout_text = "\n".join(msg.text for msg in result.logs.stdout)
+            assert "marker.txt" in stdout_text
+            assert "datasets" not in stdout_text
+            logger.info("✓ Only subPath contents are visible inside the sandbox")
+
+            # Step 3: Write a file and verify
+            result = sandbox.commands.run(
+                f"echo 'subpath-write-test' > {container_mount_path}/output.txt"
+            )
+            assert result.error is None
+            result = sandbox.commands.run(f"cat {container_mount_path}/output.txt")
+            assert result.error is None
+            assert len(result.logs.stdout) == 1
+            assert result.logs.stdout[0].text == "subpath-write-test"
+            logger.info("✓ File written and verified inside subPath mount")
+
+        finally:
+            try:
+                sandbox.kill()
+            except Exception:
+                pass
+            sandbox.close()
+            try:
+                cfg.transport.close()
+            except Exception:
+                pass
+
+        logger.info("TEST 1f PASSED: PVC subPath named volume mount test completed successfully")
 
     @pytest.mark.timeout(120)
     @pytest.mark.order(2)

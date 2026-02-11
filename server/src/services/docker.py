@@ -40,7 +40,7 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 import docker
-from docker.errors import DockerException, ImageNotFound
+from docker.errors import DockerException, ImageNotFound, NotFound as DockerNotFound
 from fastapi import HTTPException, status
 
 from src.api.schema import (
@@ -998,63 +998,170 @@ class DockerSandboxService(SandboxService):
                 },
             )
 
-    @staticmethod
-    def _validate_pvc_volume(volume) -> None:
+    def _validate_pvc_volume(self, volume) -> None:
         """
-        Docker-specific validation for PVC volumes — always rejected.
+        Docker-specific validation for PVC (named volume) backend.
 
-        PVC is only available in Kubernetes runtime.
+        In Docker runtime, the ``pvc`` backend maps to a Docker named volume.
+        ``pvc.claimName`` is used as the Docker volume name.  The volume must
+        already exist (created via ``docker volume create``).
+
+        When ``subPath`` is specified, the volume must use the ``local`` driver
+        so that the host-side ``Mountpoint`` is a real filesystem path.  The
+        resolved path (``Mountpoint + subPath``) must exist on the host.
 
         Args:
             volume: Volume with pvc backend.
 
         Raises:
-            HTTPException: Always, since Docker does not support PVC.
+            HTTPException: When the named volume does not exist, inspection
+                fails, or subPath constraints are violated.
         """
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": SandboxErrorCodes.UNSUPPORTED_VOLUME_BACKEND,
-                "message": (
-                    f"Volume '{volume.name}' uses 'pvc' backend which is not supported "
-                    "in Docker runtime. PVC is only available in Kubernetes runtime."
-                ),
-            },
-        )
+        volume_name = volume.pvc.claim_name
+        try:
+            vol_info = self.docker_client.api.inspect_volume(volume_name)
+        except DockerNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": SandboxErrorCodes.PVC_VOLUME_NOT_FOUND,
+                    "message": (
+                        f"Volume '{volume.name}': Docker named volume '{volume_name}' "
+                        "does not exist. Named volumes must be created before sandbox "
+                        "creation (e.g., 'docker volume create <name>')."
+                    ),
+                },
+            )
+        except DockerException as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "code": SandboxErrorCodes.PVC_VOLUME_INSPECT_FAILED,
+                    "message": (
+                        f"Volume '{volume.name}': failed to inspect Docker named volume "
+                        f"'{volume_name}': {exc}"
+                    ),
+                },
+            ) from exc
 
-    @staticmethod
-    def _build_volume_binds(volumes: Optional[list]) -> list[str]:
+        # --- subPath validation for Docker named volumes ---
+        if volume.sub_path:
+            driver = vol_info.get("Driver", "")
+            if driver != "local":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": SandboxErrorCodes.PVC_SUBPATH_UNSUPPORTED_DRIVER,
+                        "message": (
+                            f"Volume '{volume.name}': subPath is only supported for "
+                            f"Docker named volumes using the 'local' driver, but "
+                            f"volume '{volume_name}' uses driver '{driver}'."
+                        ),
+                    },
+                )
+
+            mountpoint = vol_info.get("Mountpoint", "")
+            if not mountpoint:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": SandboxErrorCodes.PVC_SUBPATH_UNSUPPORTED_DRIVER,
+                        "message": (
+                            f"Volume '{volume.name}': cannot resolve subPath because "
+                            f"Docker named volume '{volume_name}' has no Mountpoint."
+                        ),
+                    },
+                )
+
+            resolved_path = os.path.normpath(
+                os.path.join(mountpoint, volume.sub_path)
+            )
+            # Defense in depth: ensure resolved path stays within the mountpoint
+            if not resolved_path.startswith(mountpoint):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": SandboxErrorCodes.INVALID_SUB_PATH,
+                        "message": (
+                            f"Volume '{volume.name}': resolved subPath escapes the "
+                            f"volume mountpoint."
+                        ),
+                    },
+                )
+
+            if not os.path.exists(resolved_path):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": SandboxErrorCodes.PVC_SUBPATH_NOT_FOUND,
+                        "message": (
+                            f"Volume '{volume.name}': subPath '{volume.sub_path}' does "
+                            f"not exist inside Docker named volume '{volume_name}'. "
+                            "The subdirectory must exist before sandbox creation."
+                        ),
+                    },
+                )
+
+    def _build_volume_binds(self, volumes: Optional[list]) -> list[str]:
         """
-        Convert Volume definitions with host backend into Docker bind mount specs.
+        Convert Volume definitions into Docker bind/volume mount specs.
 
-        Each bind mount is formatted as:
-            host_path:container_path:ro  (for read-only)
-            host_path:container_path:rw  (for read-write, default)
+        Supported backends:
+        - ``host``: host path bind mount.
+          Format: ``/host/path:/container/path:ro|rw``
+        - ``pvc``: Docker named volume mount.
+          Format (no subPath): ``volume-name:/container/path:ro|rw``
+          Docker recognises non-absolute-path sources as named volume references.
+          Format (with subPath): ``/var/lib/docker/volumes/…/subdir:/container/path:ro|rw``
+          When subPath is specified, the volume's host Mountpoint is resolved via
+          ``docker volume inspect`` and the subPath is appended, producing a
+          standard bind mount.
 
-        The host path is resolved by combining host.path with the optional subPath.
+        Each mount string uses ``:ro`` for read-only and ``:rw`` for read-write
+        (default).
 
         Args:
             volumes: List of Volume objects from the creation request.
 
         Returns:
-            List of Docker bind mount strings.
+            List of Docker bind/volume mount strings.
         """
         if not volumes:
             return []
 
         binds: list[str] = []
         for volume in volumes:
-            if volume.host is None:
-                continue
-
-            # Resolve the concrete host path (host.path + optional subPath)
-            host_path = volume.host.path
-            if volume.sub_path:
-                host_path = os.path.normpath(os.path.join(host_path, volume.sub_path))
-
             container_path = volume.mount_path
             mode = "ro" if volume.read_only else "rw"
-            binds.append(f"{host_path}:{container_path}:{mode}")
+
+            if volume.host is not None:
+                # Resolve the concrete host path (host.path + optional subPath)
+                host_path = volume.host.path
+                if volume.sub_path:
+                    host_path = os.path.normpath(
+                        os.path.join(host_path, volume.sub_path)
+                    )
+                binds.append(f"{host_path}:{container_path}:{mode}")
+
+            elif volume.pvc is not None:
+                if volume.sub_path:
+                    # Resolve the named volume's host-side Mountpoint and append
+                    # the subPath to produce a regular bind mount.  Validation
+                    # has already ensured the driver is "local" and the resolved
+                    # path exists.
+                    vol_info = self.docker_client.api.inspect_volume(
+                        volume.pvc.claim_name
+                    )
+                    mountpoint = vol_info["Mountpoint"]
+                    resolved = os.path.normpath(
+                        os.path.join(mountpoint, volume.sub_path)
+                    )
+                    binds.append(f"{resolved}:{container_path}:{mode}")
+                else:
+                    # No subPath: use claimName directly as Docker volume ref.
+                    binds.append(
+                        f"{volume.pvc.claim_name}:{container_path}:{mode}"
+                    )
 
         return binds
 
