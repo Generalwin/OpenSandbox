@@ -29,7 +29,7 @@ if [ "$COMPONENT" == "controller" ]; then
     BUILD_ARG="--build-arg PACKAGE=cmd/controller/main.go"
 elif [ "$COMPONENT" == "task-executor" ]; then
     IMAGE_NAME="task-executor"
-    BUILD_ARG="--build-arg PACKAGE=cmd/task-executor/main.go"
+    BUILD_ARG="--build-arg PACKAGE=cmd/task-executor/main.go --build-arg USERID=0"
 else
     echo "Error: Unknown component: $COMPONENT"
     echo "Available components: controller, task-executor"

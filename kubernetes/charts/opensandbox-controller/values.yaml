@@ -120,11 +120,10 @@ rbac:
 crds:
   # -- Specifies whether CRDs should be installed
   install: true
-  # -- Keep CRDs on chart uninstall
+  # -- Keep CRDs on chart uninstall (adds helm.sh/resource-policy: keep annotation)
   keep: true
-  # -- Annotations to add to CRDs
-  annotations:
-    "helm.sh/resource-policy": "keep"
+  # -- Additional annotations to add to CRDs (will be merged with resource-policy if keep is true)
+  annotations: {}
 
 # Network Policy configuration
 networkPolicy:

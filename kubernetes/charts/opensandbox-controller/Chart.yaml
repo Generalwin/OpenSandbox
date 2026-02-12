@@ -3,7 +3,7 @@ name: opensandbox-controller
 description: A Kubernetes operator for managing sandbox environments with resource pooling and batch delivery
 type: application
 version: 0.1.0
-appVersion: "0.0.1"
+appVersion: "0.1.0"
 
 keywords:
   - sandbox

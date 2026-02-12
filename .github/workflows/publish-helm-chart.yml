@@ -10,17 +10,13 @@ on:
         options:
           - opensandbox-controller
         default: 'opensandbox-controller'
-      chart_version:
-        description: 'Chart version to release'
+      app_version:
+        description: 'App version (without v prefix, e.g., 0.1.0)'
         required: true
         default: '0.1.0'
-      app_version:
-        description: 'App version'
-        required: true
-        default: '0.0.1'
   push:
     tags:
-      - 'helm/**'
+      - 'helm/**'  # Format: helm/<component>/<app_version>, e.g., helm/opensandbox-controller/0.1.0
 
 jobs:
   publish:
@@ -53,12 +49,13 @@ jobs:
             COMPONENT=$(echo "$TAG_PATH" | cut -d'/' -f2)
             VERSION=$(echo "$TAG_PATH" | cut -d'/' -f3)
             
+            # Remove 'v' prefix if present
+            VERSION=${VERSION#v}
+            
             echo "component=$COMPONENT" >> $GITHUB_OUTPUT
-            echo "chart_version=$VERSION" >> $GITHUB_OUTPUT
             echo "app_version=$VERSION" >> $GITHUB_OUTPUT
           else
             echo "component=${{ inputs.component }}" >> $GITHUB_OUTPUT
-            echo "chart_version=${{ inputs.chart_version }}" >> $GITHUB_OUTPUT
             echo "app_version=${{ inputs.app_version }}" >> $GITHUB_OUTPUT
           fi
 
@@ -76,13 +73,20 @@ jobs:
           
           echo "path=$CHART_PATH" >> $GITHUB_OUTPUT
 
-      - name: Update Chart.yaml with versions
+      - name: Get chart version from Chart.yaml
+        id: chart_version
         run: |
-          CHART_VERSION="${{ steps.parse_tag.outputs.chart_version }}"
+          CHART_PATH="${{ steps.chart_path.outputs.path }}"
+          CHART_VERSION=$(grep '^version:' $CHART_PATH/Chart.yaml | awk '{print $2}')
+          echo "version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "Chart version: $CHART_VERSION"
+
+      - name: Update Chart.yaml with app version
+        run: |
           APP_VERSION="${{ steps.parse_tag.outputs.app_version }}"
           CHART_PATH="${{ steps.chart_path.outputs.path }}"
           
-          sed -i "s/^version:.*/version: $CHART_VERSION/" $CHART_PATH/Chart.yaml
+          # Only update appVersion, keep chart version as-is in Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"$APP_VERSION\"/" $CHART_PATH/Chart.yaml
           
           echo "Updated Chart.yaml:"
@@ -101,24 +105,40 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: helm/${{ steps.parse_tag.outputs.component }}/${{ steps.parse_tag.outputs.chart_version }}
-          name: Helm Chart ${{ steps.parse_tag.outputs.component }} v${{ steps.parse_tag.outputs.chart_version }}
+          tag_name: helm/${{ steps.parse_tag.outputs.component }}/${{ steps.parse_tag.outputs.app_version }}
+          name: Helm Chart ${{ steps.parse_tag.outputs.component }} ${{ steps.chart_version.outputs.version }} (App v${{ steps.parse_tag.outputs.app_version }})
           body: |
-            ## ${{ steps.parse_tag.outputs.component }} Helm Chart v${{ steps.parse_tag.outputs.chart_version }}
+            ## ${{ steps.parse_tag.outputs.component }} Helm Chart
             
+            **Chart Version:** ${{ steps.chart_version.outputs.version }}
             **App Version:** ${{ steps.parse_tag.outputs.app_version }}
             
             ### Installation
             
-            直接从 Release 安装:
+            直接从 GitHub Release 安装:
             
             ```bash
-            helm install ${{ steps.parse_tag.outputs.component }} https://github.com/${{ github.repository }}/releases/download/helm/${{ steps.parse_tag.outputs.component }}/${{ steps.parse_tag.outputs.chart_version }}/${{ steps.parse_tag.outputs.component }}-${{ steps.parse_tag.outputs.chart_version }}.tgz --namespace opensandbox-system --create-namespace
+            helm install opensandbox \
+              https://github.com/${{ github.repository }}/releases/download/helm/${{ steps.parse_tag.outputs.component }}/${{ steps.parse_tag.outputs.app_version }}/${{ steps.parse_tag.outputs.component }}-${{ steps.chart_version.outputs.version }}.tgz \
+              --namespace opensandbox-system \
+              --create-namespace
+            ```
+            
+            或者先下载后安装:
+            
+            ```bash
+            # 下载
+            wget https://github.com/${{ github.repository }}/releases/download/helm/${{ steps.parse_tag.outputs.component }}/${{ steps.parse_tag.outputs.app_version }}/${{ steps.parse_tag.outputs.component }}-${{ steps.chart_version.outputs.version }}.tgz
+            
+            # 安装
+            helm install opensandbox ./${{ steps.parse_tag.outputs.component }}-${{ steps.chart_version.outputs.version }}.tgz \
+              --namespace opensandbox-system \
+              --create-namespace
             ```
             
             ### What's Changed
             
-            - Chart version: ${{ steps.parse_tag.outputs.chart_version }}
+            - Chart version: ${{ steps.chart_version.outputs.version }}
             - App version: ${{ steps.parse_tag.outputs.app_version }}
           files: |
             ${{ steps.parse_tag.outputs.component }}-*.tgz

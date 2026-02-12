@@ -24,7 +24,7 @@ To install the chart with the release name `opensandbox`:
 ```bash
 helm install opensandbox ./opensandbox-controller \
   --set controller.image.repository=<your-registry>/opensandbox-controller \
-  --set controller.image.tag=v0.0.1 \
+  --set controller.image.tag=v0.1.0 \
   --namespace opensandbox-system \
   --create-namespace
 ```
@@ -72,8 +72,6 @@ kubectl delete crd pools.sandbox.opensandbox.io
 | `controller.resources.requests.memory` | Memory resource requests | `64Mi` |
 | `controller.logLevel` | Log level (0-5, higher is more verbose) | `3` |
 | `controller.leaderElection.enabled` | Enable leader election | `true` |
-| `controller.batchSandboxConcurrency` | Batch sandbox controller concurrency | `32` |
-| `controller.poolConcurrency` | Pool controller concurrency | `1` |
 | `controller.nodeSelector` | Node labels for pod assignment | `{}` |
 | `controller.tolerations` | Tolerations for pod assignment | `[]` |
 | `controller.affinity` | Affinity for pod assignment | `{}` |

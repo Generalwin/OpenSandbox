@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 0.0.1
+VERSION ?= 0.1.0
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -29,7 +29,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opensandbox.io/sandbox-k8s-bundle:$VERSION and opensandbox.io/sandbox-k8s-catalog:$VERSION.
-IMAGE_TAG_BASE ?= opensandbox.io/sandbox-k8s
+IMAGE_TAG_BASE ?= sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/controller
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -430,14 +430,14 @@ helm-template: ## Generate Kubernetes manifests from Helm chart
 	@echo "Generating manifests from Helm chart..."
 	helm template opensandbox $(HELM_CHART_PATH) \
 		--set controller.image.repository=$(IMAGE_TAG_BASE) \
-		--set controller.image.tag=$(VERSION)
+		--set controller.image.tag=v$(VERSION)
 
 .PHONY: helm-template-debug
 helm-template-debug: ## Generate Kubernetes manifests with debug output
 	@echo "Generating manifests from Helm chart with debug..."
 	helm template opensandbox $(HELM_CHART_PATH) \
 		--set controller.image.repository=$(IMAGE_TAG_BASE) \
-		--set controller.image.tag=$(VERSION) \
+		--set controller.image.tag=v$(VERSION) \
 		--debug
 
 .PHONY: helm-package
@@ -451,7 +451,7 @@ helm-install: ## Install the Helm chart
 	@echo "Installing Helm chart..."
 	helm install opensandbox $(HELM_CHART_PATH) \
 		--set controller.image.repository=$(IMAGE_TAG_BASE) \
-		--set controller.image.tag=$(VERSION) \
+		--set controller.image.tag=v$(VERSION) \
 		--namespace opensandbox-system \
 		--create-namespace
 
@@ -460,7 +460,7 @@ helm-upgrade: ## Upgrade the Helm chart
 	@echo "Upgrading Helm chart..."
 	helm upgrade opensandbox $(HELM_CHART_PATH) \
 		--set controller.image.repository=$(IMAGE_TAG_BASE) \
-		--set controller.image.tag=$(VERSION) \
+		--set controller.image.tag=v$(VERSION) \
 		--namespace opensandbox-system
 
 .PHONY: helm-uninstall
@@ -488,7 +488,7 @@ helm-dry-run: ## Perform a dry-run install of the Helm chart
 	@echo "Performing dry-run installation..."
 	helm install opensandbox $(HELM_CHART_PATH) \
 		--set controller.image.repository=$(IMAGE_TAG_BASE) \
-		--set controller.image.tag=$(VERSION) \
+		--set controller.image.tag=v$(VERSION) \
 		--namespace opensandbox-system \
 		--create-namespace \
 		--dry-run --debug

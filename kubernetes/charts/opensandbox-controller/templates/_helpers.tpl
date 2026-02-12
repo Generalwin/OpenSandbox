@@ -2,7 +2,7 @@
 Expand the name of the chart.
 */}}
 {{- define "opensandbox.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default "opensandbox" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -56,7 +56,7 @@ Create the name of the service account to use
 */}}
 {{- define "opensandbox.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (printf "%s-controller-manager" (include "opensandbox.fullname" .)) .Values.serviceAccount.name }}
+{{- default "opensandbox-controller-manager" .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -69,30 +69,36 @@ Get the namespace to use
 {{- if .Values.namespaceOverride }}
 {{- .Values.namespaceOverride }}
 {{- else }}
-{{- printf "%s-system" (include "opensandbox.name" .) }}
+{{- print "opensandbox-system" }}
 {{- end }}
 {{- end }}
 
 {{/*
-Controller image
+Controller image with automatic version prefix handling.
+Prepends 'v' to semantic version tags (e.g., 0.0.1 -> v0.0.1) but preserves
+special tags like 'latest', 'dev', 'main', etc. as-is.
 */}}
 {{- define "opensandbox.controllerImage" -}}
 {{- $tag := .Values.controller.image.tag | default .Chart.AppVersion }}
-{{- printf "%s:%s" .Values.controller.image.repository $tag }}
+{{- $finalTag := $tag }}
+{{- if and (not (hasPrefix "v" $tag)) (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+" $tag) }}
+{{- $finalTag = printf "v%s" $tag }}
+{{- end }}
+{{- printf "%s:%s" .Values.controller.image.repository $finalTag }}
 {{- end }}
 
 {{/*
 Create the name for the leader election role
 */}}
 {{- define "opensandbox.leaderElectionRoleName" -}}
-{{- printf "%s-leader-election-role" (include "opensandbox.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- print "opensandbox-leader-election-role" }}
 {{- end }}
 
 {{/*
 Create the name for the manager role
 */}}
 {{- define "opensandbox.managerRoleName" -}}
-{{- printf "%s-manager-role" (include "opensandbox.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- print "opensandbox-manager-role" }}
 {{- end }}
 
 {{/*

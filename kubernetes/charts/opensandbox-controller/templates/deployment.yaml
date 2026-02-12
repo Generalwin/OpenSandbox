@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "opensandbox.fullname" . }}-controller-manager
+  name: opensandbox-controller-manager
   namespace: {{ include "opensandbox.namespace" . }}
   labels:
     {{- include "opensandbox.labels" . | nindent 4 }}

@@ -110,5 +110,6 @@ jobs:
           fi
 
           export TAG=$IMAGE_TAG
+          export COMPONENT=$COMPONENT
           chmod +x build.sh
           ./build.sh

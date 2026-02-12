@@ -65,7 +65,6 @@ git push origin k8s/task-executor/v0.1.0
 
 **Tag 命名规则**: `k8s/<component>/<version>`
 - `<component>`: 组件名称 `controller` 或 `task-executor`
-- `<version>`: 版本号，例如 `v0.1.0`
 - `<version>`: 镜像版本号，例如 `v0.1.0`
 
 ## 方式三: 使用 Makefile
