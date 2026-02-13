@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -594,7 +595,8 @@ class TestBuildVolumeBinds:
             sub_path="task-001",
         )
         binds = service._build_volume_binds([volume])
-        assert binds == ["/data/opensandbox/user-a/task-001:/mnt/work:rw"]
+        expected_host = os.path.normpath("/data/opensandbox/user-a/task-001")
+        assert binds == [f"{expected_host}:/mnt/work:rw"]
 
     def test_multiple_host_volumes(self, mock_docker):
         """Multiple host volumes should produce multiple bind strings."""
@@ -1131,7 +1133,6 @@ class TestDockerVolumeValidation:
         service = DockerSandboxService(config=_app_config())
 
         import tempfile
-        import os
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create the subPath directory

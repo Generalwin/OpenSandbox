@@ -1130,10 +1130,13 @@ class DockerSandboxService(SandboxService):
             try:
                 canonical_mountpoint = os.path.realpath(mountpoint)
                 canonical_resolved = os.path.realpath(resolved_path)
+                # os.path.realpath returns OS-native separators, so use
+                # os.sep here (unlike the lexical check above which operates
+                # on POSIX-normalised Docker Mountpoint strings).
                 canonical_prefix = (
                     canonical_mountpoint
-                    if canonical_mountpoint.endswith("/")
-                    else canonical_mountpoint + "/"
+                    if canonical_mountpoint.endswith(os.sep)
+                    else canonical_mountpoint + os.sep
                 )
                 if (
                     canonical_resolved != canonical_mountpoint
