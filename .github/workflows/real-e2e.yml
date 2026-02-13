@@ -39,10 +39,9 @@ jobs:
 
       - name: Clean up previous E2E resources
         run: |
-          # Stop and remove any leftover sandbox containers from previous runs
           docker ps -aq --filter "label=opensandbox" | xargs -r docker rm -f || true
-          # Remove stale E2E logs
-          rm -rf /tmp/opensandbox-e2e/logs/*
+          # Remove root-owned files from previous sandbox runs by mounting parent dir
+          docker run --rm -v /tmp:/host_tmp alpine rm -rf /host_tmp/opensandbox-e2e || true
 
       - name: Run tests
         run: |
@@ -83,9 +82,8 @@ jobs:
       - name: Clean up after E2E
         if: always()
         run: |
-          # Stop sandbox containers created during this run
           docker ps -aq --filter "label=opensandbox" | xargs -r docker rm -f || true
-          # Kill any leftover server process
+          docker run --rm -v /tmp:/host_tmp alpine rm -rf /host_tmp/opensandbox-e2e || true
           pkill -f "python -m src.main" || true
 
   java-e2e:
@@ -127,7 +125,7 @@ jobs:
       - name: Clean up previous E2E resources
         run: |
           docker ps -aq --filter "label=opensandbox" | xargs -r docker rm -f || true
-          rm -rf /tmp/opensandbox-e2e/logs/*
+          docker run --rm -v /tmp:/host_tmp alpine rm -rf /host_tmp/opensandbox-e2e || true
 
       - name: Run tests
         env:
@@ -179,6 +177,7 @@ jobs:
         if: always()
         run: |
           docker ps -aq --filter "label=opensandbox" | xargs -r docker rm -f || true
+          docker run --rm -v /tmp:/host_tmp alpine rm -rf /host_tmp/opensandbox-e2e || true
           pkill -f "python -m src.main" || true
 
   javascript-e2e:
@@ -217,7 +216,7 @@ jobs:
       - name: Clean up previous E2E resources
         run: |
           docker ps -aq --filter "label=opensandbox" | xargs -r docker rm -f || true
-          rm -rf /tmp/opensandbox-e2e/logs/*
+          docker run --rm -v /tmp:/host_tmp alpine rm -rf /host_tmp/opensandbox-e2e || true
 
       - name: Run tests
         run: |
@@ -267,4 +266,5 @@ jobs:
         if: always()
         run: |
           docker ps -aq --filter "label=opensandbox" | xargs -r docker rm -f || true
+          docker run --rm -v /tmp:/host_tmp alpine rm -rf /host_tmp/opensandbox-e2e || true
           pkill -f "python -m src.main" || true
