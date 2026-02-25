@@ -29,6 +29,8 @@ from kubernetes.client import (
     ApiException,
 )
 
+from src.config import IngressConfig
+from src.services.helpers import format_ingress_endpoint
 from src.api.schema import ImageSpec, NetworkPolicy
 from src.services.k8s.agent_sandbox_template import AgentSandboxTemplateManager
 from src.services.k8s.client import K8sClient
@@ -55,6 +57,7 @@ class AgentSandboxProvider(WorkloadProvider):
         template_file_path: Optional[str] = None,
         shutdown_policy: str = "Delete",
         service_account: Optional[str] = None,
+        ingress_config: Optional[IngressConfig] = None,
         enable_informer: bool = True,
         informer_factory: Optional[Callable[[str], WorkloadInformer]] = None,
         informer_resync_seconds: int = 300,
@@ -71,6 +74,7 @@ class AgentSandboxProvider(WorkloadProvider):
         self.shutdown_policy = shutdown_policy
         self.service_account = service_account
         self.template_manager = AgentSandboxTemplateManager(template_file_path)
+        self.ingress_config = ingress_config
         self._enable_informer = enable_informer
         self._informer_factory = informer_factory or (
             lambda ns: WorkloadInformer(
@@ -526,7 +530,12 @@ class AgentSandboxProvider(WorkloadProvider):
 
         return None
 
-    def get_endpoint_info(self, workload: Dict[str, Any], port: int) -> Optional[str]:
+    def get_endpoint_info(self, workload: Dict[str, Any], port: int, sandbox_id: str) -> Optional[str]:
+        # ingress-based endpoint if configured (gateway)
+        ingress_endpoint = format_ingress_endpoint(self.ingress_config, sandbox_id, port)
+        if ingress_endpoint:
+            return ingress_endpoint
+
         status = workload.get("status", {})
         selector = status.get("selector")
         namespace = workload.get("metadata", {}).get("namespace")
@@ -547,3 +556,4 @@ class AgentSandboxProvider(WorkloadProvider):
             return f"{service_fqdn}:{port}"
 
         return None
+
