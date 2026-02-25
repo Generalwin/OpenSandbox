@@ -94,6 +94,9 @@ def create_workload_provider(
             k8s_client,
             template_file_path=template_file,
             ingress_config=ingress_config,
+            enable_informer=k8s_config.informer_enabled,
+            informer_resync_seconds=k8s_config.informer_resync_seconds,
+            informer_watch_timeout_seconds=k8s_config.informer_watch_timeout_seconds,
         )
 
     # Special handling for AgentSandboxProvider - pass agent-specific settings
@@ -105,6 +108,13 @@ def create_workload_provider(
             shutdown_policy=agent_config.shutdown_policy,
             service_account=k8s_config.service_account if k8s_config else None,
             ingress_config=ingress_config,
+            enable_informer=k8s_config.informer_enabled if k8s_config else True,
+            informer_resync_seconds=(
+                k8s_config.informer_resync_seconds if k8s_config else 300
+            ),
+            informer_watch_timeout_seconds=(
+                k8s_config.informer_watch_timeout_seconds if k8s_config else 60
+            ),
         )
     
     # Providers without ingress-specific needs

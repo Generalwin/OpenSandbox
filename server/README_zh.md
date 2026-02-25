@@ -142,6 +142,23 @@ mode = "direct"  # Docker 运行时仅支持 direct（直连，无 L7 网关）
     - `wildcard`：`<sandbox-id>-<port>.example.com/path/to/request`
     - `uri`：`10.0.0.1:8000/<sandbox-id>/<port>/path/to/request`
 
+**Kubernetes 运行时**
+   ```toml
+   [runtime]
+   type = "kubernetes"
+   execd_image = "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/execd:v1.0.5"
+
+   [kubernetes]
+   kubeconfig_path = "~/.kube/config"
+   namespace = "opensandbox"
+   workload_provider = "batchsandbox"        # 或 "agent-sandbox"
+   informer_enabled = true                   # Beta：启用 watch 缓存
+   informer_resync_seconds = 300             # Beta：全量刷新间隔
+   informer_watch_timeout_seconds = 60       # Beta：watch 超时重连间隔
+   ```
+   - Informer 配置为 **Beta**，默认开启以减少 API 压力；若需关闭设置 `informer_enabled = false`。
+   - resync / watch 超时用于控制缓存刷新频率，可根据集群 API 限流调优。
+
 ### Egress sidecar 配置与使用
 
 - **使用 `networkPolicy` 时必需**：配置 sidecar 镜像。当请求携带 `networkPolicy` 时，`egress.image` 配置项是必需的：
