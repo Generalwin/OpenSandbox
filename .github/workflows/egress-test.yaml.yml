@@ -71,7 +71,10 @@ jobs:
         env:
           BENCH_SAMPLE_SIZE: "20"
 
-      - name: Eval bench logs
+      - name: Upload egress logs
         if: always()
-        run: |
-          cat /tmp/egress-logs/egress.log
+        uses: actions/upload-artifact@v4
+        with:
+          name: egress-log-for-bench
+          path: /tmp/egress-logs/
+          retention-days: 5

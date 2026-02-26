@@ -142,15 +142,18 @@ func (s *policyServer) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := strings.TrimSpace(string(body))
 	if raw == "" {
+		log.Infof("policy API: reset to default deny-all")
 		def := policy.DefaultDenyPolicy()
 		if s.nft != nil {
 			defWithNS := def.WithExtraAllowIPs(s.nameserverIPs)
 			if err := s.nft.ApplyStatic(r.Context(), defWithNS); err != nil {
+				log.Errorf("policy API: nftables apply failed on reset: %v", err)
 				http.Error(w, fmt.Sprintf("failed to apply nftables: %v", err), http.StatusInternalServerError)
 				return
 			}
 		}
 		s.proxy.UpdatePolicy(def)
+		log.Infof("policy API: proxy and nftables updated to deny_all")
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status": "ok",
 			"mode":   "deny_all",
@@ -164,17 +167,21 @@ func (s *policyServer) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("invalid policy: %v", err), http.StatusBadRequest)
 		return
 	}
+	mode := modeFromPolicy(pol)
+	log.Infof("policy API: updating policy to mode=%s, enforcement=%s", mode, s.enforcementMode)
 	if s.nft != nil {
 		polWithNS := pol.WithExtraAllowIPs(s.nameserverIPs)
 		if err := s.nft.ApplyStatic(r.Context(), polWithNS); err != nil {
+			log.Errorf("policy API: nftables apply failed: %v", err)
 			http.Error(w, fmt.Sprintf("failed to apply nftables policy: %v", err), http.StatusInternalServerError)
 			return
 		}
 	}
 	s.proxy.UpdatePolicy(pol)
+	log.Infof("policy API: proxy and nftables updated successfully")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":          "ok",
-		"mode":            modeFromPolicy(pol),
+		"mode":            mode,
 		"enforcementMode": s.enforcementMode,
 	})
 }

@@ -43,6 +43,7 @@ func main() {
 	allowIPs := AllowIPsForNft("/etc/resolv.conf")
 
 	mode := parseMode()
+	log.Infof("enforcement mode: %s", mode)
 	nftMgr := createNftManager(mode)
 	proxy, err := dnsproxy.New(initialRules, "")
 	if err != nil {
