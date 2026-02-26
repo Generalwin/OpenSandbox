@@ -74,4 +74,4 @@ jobs:
       - name: Eval bench logs
         if: always()
         run: |
-          cat /tmp/egress-logs
+          cat /tmp/egress-logs/egress.log

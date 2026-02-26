@@ -29,6 +29,8 @@ info() { echo "[$(date +%H:%M:%S)] $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOSTNAME_FILE="${SCRIPT_DIR}/hostname.txt"
+# tests/ is two levels under repo root: components/egress/tests -> climb 3 levels.
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 IMG="opensandbox/egress:local"
 BASELINE_IMG="${BASELINE_IMG:-curlimages/curl:latest}"
@@ -302,7 +304,7 @@ report() {
 }
 
 info "Building image ${IMG}"
-docker build -t "${IMG}" . > /dev/null 2>&1
+docker build -t "${IMG}" -f "${REPO_ROOT}/components/egress/Dockerfile" "${REPO_ROOT}" > /dev/null 2>&1
 
 run_phase_baseline
 run_phase "dns+nft"
