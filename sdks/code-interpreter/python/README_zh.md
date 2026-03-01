@@ -121,6 +121,28 @@ with sandbox:
     sandbox.kill()
 ```
 
+### 运行时安装 Python 依赖（无需交互式进入 shell）
+
+不需要手动“先进入 bash 再执行命令”。可以直接通过
+`sandbox.commands.run(...)` 包一层 shell 来安装依赖：
+
+```python
+execution = await sandbox.commands.run(
+    "bash -lc 'python3 -m ensurepip --upgrade >/dev/null 2>&1 || true; "
+    "python3 -m pip install --break-system-packages pandas numpy'"
+)
+```
+
+如果镜像中没有 `bash`，可以改用 `/bin/sh -lc` 执行相同命令体。
+
+如果通过 `PYTHON_VERSION` 指定了 Python 版本，也可以这样写：
+
+```python
+await sandbox.commands.run(
+    "bash -lc 'python ${PYTHON_VERSION:-3.11} -m pip install --break-system-packages pandas numpy'"
+)
+```
+
 ## 运行时配置
 
 ### Docker 镜像

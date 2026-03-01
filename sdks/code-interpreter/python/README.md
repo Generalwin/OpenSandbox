@@ -126,6 +126,28 @@ with sandbox:
     sandbox.kill()
 ```
 
+### Installing Python packages at runtime (no interactive shell required)
+
+You do not need to "enter bash" interactively. Execute package installation through
+`sandbox.commands.run(...)` with a shell wrapper:
+
+```python
+execution = await sandbox.commands.run(
+    "bash -lc 'python3 -m ensurepip --upgrade >/dev/null 2>&1 || true; "
+    "python3 -m pip install --break-system-packages pandas numpy'"
+)
+```
+
+If your image does not provide `bash`, use `/bin/sh -lc` with the same command body.
+
+When selecting Python runtime versions via `PYTHON_VERSION`, you can also use:
+
+```python
+await sandbox.commands.run(
+    "bash -lc 'python ${PYTHON_VERSION:-3.11} -m pip install --break-system-packages pandas numpy'"
+)
+```
+
 ## Runtime Configuration
 
 ### Docker Image
