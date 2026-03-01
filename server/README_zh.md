@@ -114,6 +114,35 @@ opensandbox-server init-config ~/.sandbox.toml --example k8s-zh
    network_mode = "bridge"  # 容器隔离网络
    ```
 
+**Docker Compose 部署（server 本身运行在容器中）**
+
+当 `opensandbox-server` 运行在 Docker Compose 容器内，并通过挂载
+`/var/run/docker.sock` 管理沙箱时，需要为 bridge 模式端点解析配置一个可达的宿主地址：
+
+```toml
+[docker]
+network_mode = "bridge"
+host_ip = "host.docker.internal"  # 或宿主机 LAN IP（Linux 建议显式填写）
+```
+
+原因：
+- bridge 模式下沙箱容器会分配 Docker 内部 IP。
+- 外部调用方通常无法直接访问这些内部 IP。
+- `host_ip` 会让端点解析返回对调用方可达的宿主地址。
+
+对于无法直连 sandbox bridge 地址的 SDK/API 调用方，可通过 server 代理获取端点：
+
+```bash
+curl -H "OPEN-SANDBOX-API-KEY: your-secret-api-key" \
+  "http://localhost:8080/v1/sandboxes/<sandbox-id>/endpoints/44772?use_server_proxy=true"
+```
+
+返回端点会被重写为 server 代理路径：
+- `<server-host>/sandboxes/<sandbox-id>/proxy/<port>`
+
+可参考 Compose 运行示例：
+- `server/docker-compose.example.yaml`
+
 **安全加固（适用于所有 Docker 模式）**
    ```toml
    [docker]
