@@ -113,6 +113,37 @@ Before you start the server, edit the configuration file to suit your environmen
    network_mode = "bridge"  # Isolated container networking
    ```
 
+**Docker Compose deployment (server runs in a container)**
+
+When `opensandbox-server` itself runs inside Docker Compose and manages sandboxes via
+mounted `/var/run/docker.sock`, configure a reachable host value for bridge-mode endpoint
+resolution:
+
+```toml
+[docker]
+network_mode = "bridge"
+host_ip = "host.docker.internal"  # or host LAN IP (for Linux: explicit host IP is recommended)
+```
+
+Why this matters:
+- In bridge mode, sandbox containers get internal Docker IPs.
+- External callers usually cannot reach those internal IPs directly.
+- `host_ip` lets endpoint resolution return host-reachable addresses.
+
+For SDK/API clients that cannot directly reach sandbox bridge addresses, request proxied
+endpoints through the server:
+
+```bash
+curl -H "OPEN-SANDBOX-API-KEY: your-secret-api-key" \
+  "http://localhost:8080/v1/sandboxes/<sandbox-id>/endpoints/44772?use_server_proxy=true"
+```
+
+The returned endpoint is rewritten to the server proxy route:
+- `<server-host>/sandboxes/<sandbox-id>/proxy/<port>`
+
+Reference runtime compose file:
+- `server/docker-compose.example.yaml`
+
 **Security hardening (applies to all Docker modes)**
    ```toml
    [docker]
