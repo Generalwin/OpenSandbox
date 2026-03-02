@@ -459,6 +459,10 @@ class BatchSandboxProvider(WorkloadProvider):
                     mount_path="/opt/opensandbox/bin"
                 )
             ],
+            resources=V1ResourceRequirements(
+                limits={"cpu": "100m", "memory": "128Mi"},
+                requests={"cpu": "100m", "memory": "128Mi"},
+            ),
         )
     
     def _build_main_container(
