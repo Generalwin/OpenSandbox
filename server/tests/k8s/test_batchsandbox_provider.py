@@ -136,6 +136,8 @@ class TestBatchSandboxProvider:
         assert init_container["command"] == ["/bin/sh", "-c"]
         assert "bootstrap.sh" in init_container["args"][0]
         assert init_container["volumeMounts"][0]["name"] == "opensandbox-bin"
+        assert init_container["resources"]["limits"] == {"cpu": "100m", "memory": "128Mi"}
+        assert init_container["resources"]["requests"] == {"cpu": "100m", "memory": "128Mi"}
     
     def test_create_workload_wraps_entrypoint_with_bootstrap(self, mock_k8s_client):
         """
