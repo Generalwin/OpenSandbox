@@ -100,6 +100,7 @@ def create_workload_provider(
             informer_resync_seconds=k8s_config.informer_resync_seconds,
             informer_watch_timeout_seconds=k8s_config.informer_watch_timeout_seconds,
             app_config=app_config,
+            execd_init_resources=k8s_config.execd_init_resources if k8s_config else None,
         )
 
     # Special handling for AgentSandboxProvider - pass agent-specific settings
@@ -119,6 +120,7 @@ def create_workload_provider(
                 k8s_config.informer_watch_timeout_seconds if k8s_config else 60
             ),
             app_config=app_config,
+            execd_init_resources=k8s_config.execd_init_resources if k8s_config else None,
         )
 
     # Providers without ingress-specific needs

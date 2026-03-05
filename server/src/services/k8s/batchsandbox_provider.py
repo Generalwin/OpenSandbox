@@ -16,6 +16,7 @@
 BatchSandbox-based workload provider implementation.
 """
 
+import json
 import logging
 import shlex
 from datetime import datetime
@@ -30,7 +31,7 @@ from kubernetes.client import (
     ApiException,
 )
 
-from src.config import AppConfig, IngressConfig, INGRESS_MODE_GATEWAY
+from src.config import AppConfig, IngressConfig, INGRESS_MODE_GATEWAY, ExecdInitResources
 from src.services.helpers import format_ingress_endpoint
 from src.api.schema import Endpoint, ImageSpec, NetworkPolicy
 from src.services.k8s.batchsandbox_template import BatchSandboxTemplateManager
@@ -66,6 +67,7 @@ class BatchSandboxProvider(WorkloadProvider):
         informer_resync_seconds: int = 300,
         informer_watch_timeout_seconds: int = 60,
         app_config: Optional[AppConfig] = None,
+        execd_init_resources: Optional[ExecdInitResources] = None,
     ):
         """
         Initialize BatchSandbox provider.
@@ -84,7 +86,7 @@ class BatchSandboxProvider(WorkloadProvider):
         self.runtime_class = (
             self.resolver.get_k8s_runtime_class() if self.resolver else None
         )
-        
+
         # CRD constants
         self.group = "sandbox.opensandbox.io"
         self.version = "v1alpha1"
@@ -92,6 +94,7 @@ class BatchSandboxProvider(WorkloadProvider):
         
         # Template manager
         self.template_manager = BatchSandboxTemplateManager(template_file_path)
+        self.execd_init_resources = execd_init_resources
         self._enable_informer = enable_informer
         self._informer_factory = informer_factory or (
             lambda ns: WorkloadInformer(
@@ -204,7 +207,7 @@ class BatchSandboxProvider(WorkloadProvider):
         # Inject runtimeClassName if secure runtime is configured
         if self.runtime_class:
             pod_spec["runtimeClassName"] = self.runtime_class
-        
+
         # Add egress sidecar if network policy is provided
         apply_egress_to_spec(
             pod_spec=pod_spec,
@@ -468,7 +471,14 @@ class BatchSandboxProvider(WorkloadProvider):
             "chmod +x /opt/opensandbox/bin/execd && "
             "chmod +x /opt/opensandbox/bin/bootstrap.sh"
         )
-        
+
+        resources = None
+        if self.execd_init_resources:
+            resources = V1ResourceRequirements(
+                limits=self.execd_init_resources.limits,
+                requests=self.execd_init_resources.requests,
+            )
+
         return V1Container(
             name="execd-installer",
             image=execd_image,
@@ -480,6 +490,7 @@ class BatchSandboxProvider(WorkloadProvider):
                     mount_path="/opt/opensandbox/bin"
                 )
             ],
+            resources=resources,
         )
     
     def _build_main_container(
@@ -760,6 +771,24 @@ class BatchSandboxProvider(WorkloadProvider):
             logger.warning(f"Invalid expireTime format: {expire_time_str}, error: {e}")
             return None
     
+    def _parse_pod_ip(self, workload: Dict[str, Any]) -> Optional[str]:
+        """Parse the first Pod IP from the endpoints annotation.
+
+        Returns the IP string if the annotation exists and contains a non-empty
+        JSON array, otherwise returns None.
+        """
+        annotations = workload.get("metadata", {}).get("annotations", {})
+        endpoints_str = annotations.get("sandbox.opensandbox.io/endpoints")
+        if not endpoints_str:
+            return None
+        try:
+            endpoints = json.loads(endpoints_str)
+            if endpoints and len(endpoints) > 0:
+                return endpoints[0]
+        except (json.JSONDecodeError, IndexError, TypeError):
+            pass
+        return None
+
     def get_status(self, workload: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get status from BatchSandbox.
@@ -774,32 +803,29 @@ class BatchSandboxProvider(WorkloadProvider):
         replicas = status.get("replicas", 0)
         ready = status.get("ready", 0)
         allocated = status.get("allocated", 0)
-        
-        # Get annotations for endpoint information
-        annotations = workload.get("metadata", {}).get("annotations", {})
-        endpoints_str = annotations.get("sandbox.opensandbox.io/endpoints")
-        
-        # Determine state based on ready status and endpoint availability
-        if ready == 1 and endpoints_str:
-            # Pod is ready and has an IP address assigned
+
+        pod_ip = self._parse_pod_ip(workload)
+
+        # Determine state: Pending -> Allocated (IP assigned) -> Running (Pod ready)
+        if ready == 1 and pod_ip:
+            # Pod is ready and has IP
             state = "Running"
-            reason = "READY_WITH_IP"
-            message = f"Pod is ready with IP assigned ({ready}/{replicas} ready)"
-        elif ready > 0:
-            # Pod is ready but no IP yet - still pending
-            state = "Pending"
-            reason = "POD_READY_NO_IP"
-            message = f"Pod is ready but waiting for IP assignment ({ready}/{replicas} ready)"
-        elif allocated > 0:
-            # Pod is allocated/scheduled but not ready yet
-            state = "Pending"
-            reason = "POD_SCHEDULED"
-            message = f"Pod is scheduled but not ready ({allocated}/{replicas} allocated, {ready} ready)"
+            reason = "POD_READY_WITH_IP"
+            message = f"Pod is ready with IP ({ready}/{replicas} ready)"
+        elif pod_ip:
+            # Pod has IP assigned but not ready yet
+            state = "Allocated"
+            reason = "IP_ASSIGNED"
+            message = f"Pod has IP assigned but not ready ({allocated}/{replicas} allocated, {ready} ready)"
         else:
-            # Pod is not allocated yet
+            # Pod is not allocated yet or allocated but no IP
             state = "Pending"
-            reason = "BATCHSANDBOX_PENDING"
-            message = "BatchSandbox is pending allocation"
+            reason = "POD_SCHEDULED" if allocated > 0 else "BATCHSANDBOX_PENDING"
+            message = (
+                f"Pod is scheduled but waiting for IP ({allocated}/{replicas} allocated, {ready} ready)"
+                if allocated > 0
+                else "BatchSandbox is pending allocation"
+            )
         
         # Get creation timestamp
         creation_timestamp = workload.get("metadata", {}).get("creationTimestamp")
@@ -817,26 +843,10 @@ class BatchSandboxProvider(WorkloadProvider):
         - gateway mode: use ingress config to format endpoint
         - direct/default: resolve Pod IP from annotation
         """
-        import json
-
         if self.ingress_config and self.ingress_config.mode == INGRESS_MODE_GATEWAY:
             return format_ingress_endpoint(self.ingress_config, sandbox_id, port)
 
-        annotations = workload.get("metadata", {}).get("annotations", {})
-        
-        # Get endpoints from annotation
-        endpoints_str = annotations.get("sandbox.opensandbox.io/endpoints")
-        if not endpoints_str:
+        pod_ip = self._parse_pod_ip(workload)
+        if not pod_ip:
             return None
-
-        try:
-            # Parse JSON array of IPs
-            endpoints = json.loads(endpoints_str)
-            if endpoints and len(endpoints) > 0:
-                # Use the first IP
-                pod_ip = endpoints[0]
-                return Endpoint(endpoint=f"{pod_ip}:{port}")
-        except (json.JSONDecodeError, IndexError, TypeError):
-            return None
-
-        return None
+        return Endpoint(endpoint=f"{pod_ip}:{port}")

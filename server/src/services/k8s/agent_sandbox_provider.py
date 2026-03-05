@@ -29,7 +29,7 @@ from kubernetes.client import (
     ApiException,
 )
 
-from src.config import AppConfig, IngressConfig
+from src.config import AppConfig, IngressConfig, ExecdInitResources
 from src.services.helpers import format_ingress_endpoint
 from src.api.schema import Endpoint, ImageSpec, NetworkPolicy
 from src.services.k8s.agent_sandbox_template import AgentSandboxTemplateManager
@@ -64,6 +64,7 @@ class AgentSandboxProvider(WorkloadProvider):
         informer_resync_seconds: int = 300,
         informer_watch_timeout_seconds: int = 60,
         app_config: Optional[AppConfig] = None,
+        execd_init_resources: Optional[ExecdInitResources] = None,
     ):
         self.k8s_client = k8s_client
         self.custom_api = k8s_client.get_custom_objects_api()
@@ -77,6 +78,7 @@ class AgentSandboxProvider(WorkloadProvider):
         self.service_account = service_account
         self.template_manager = AgentSandboxTemplateManager(template_file_path)
         self.ingress_config = ingress_config
+        self.execd_init_resources = execd_init_resources
         self._enable_informer = enable_informer
         self._informer_factory = informer_factory or (
             lambda ns: WorkloadInformer(
@@ -213,7 +215,7 @@ class AgentSandboxProvider(WorkloadProvider):
         # Inject runtimeClassName if secure runtime is configured
         if self.runtime_class:
             pod_spec["runtimeClassName"] = self.runtime_class
-        
+
         # Add egress sidecar if network policy is provided
         apply_egress_to_spec(
             pod_spec=pod_spec,
@@ -232,6 +234,13 @@ class AgentSandboxProvider(WorkloadProvider):
             "chmod +x /opt/opensandbox/bin/bootstrap.sh"
         )
 
+        resources = None
+        if self.execd_init_resources:
+            resources = V1ResourceRequirements(
+                limits=self.execd_init_resources.limits,
+                requests=self.execd_init_resources.requests,
+            )
+
         return V1Container(
             name="execd-installer",
             image=execd_image,
@@ -243,6 +252,7 @@ class AgentSandboxProvider(WorkloadProvider):
                     mount_path="/opt/opensandbox/bin",
                 )
             ],
+            resources=resources,
         )
 
     def _build_main_container(
@@ -516,6 +526,14 @@ class AgentSandboxProvider(WorkloadProvider):
         }
 
     def _pod_state_from_selector(self, workload: Dict[str, Any]) -> Optional[tuple[str, str, str]]:
+        """Resolve state from Pod list via label selector.
+
+        Returns three-state tuple (state, reason, message):
+        - Running: Pod phase Running and has IP
+        - Allocated: Pod has IP assigned but not Running yet
+        - Pending: Pod scheduled but no IP yet
+        Returns None if selector/namespace missing or API call fails.
+        """
         status = workload.get("status", {})
         selector = status.get("selector")
         namespace = workload.get("metadata", {}).get("namespace")
@@ -531,17 +549,23 @@ class AgentSandboxProvider(WorkloadProvider):
             return None
 
         for pod in pods:
-            if pod.status and pod.status.phase == "Running":
-                if pod.status.pod_ip:
+            if pod.status:
+                if pod.status.pod_ip and pod.status.phase == "Running":
                     return (
                         "Running",
                         "POD_READY",
                         "Pod is running with IP assigned",
                     )
+                if pod.status.pod_ip:
+                    return (
+                        "Allocated",
+                        "IP_ASSIGNED",
+                        "Pod has IP assigned but not running yet",
+                    )
                 return (
                     "Pending",
-                    "POD_READY_NO_IP",
-                    "Pod is running but waiting for IP assignment",
+                    "POD_SCHEDULED",
+                    "Pod is scheduled but waiting for IP assignment",
                 )
 
         if pods:

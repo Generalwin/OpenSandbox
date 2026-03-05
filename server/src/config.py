@@ -26,7 +26,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -231,6 +231,36 @@ class KubernetesRuntimeConfig(BaseModel):
     batchsandbox_template_file: Optional[str] = Field(
         default=None,
         description="Path to BatchSandbox CR YAML template file. Used when workload_provider is 'batchsandbox'.",
+    )
+    sandbox_create_timeout_seconds: int = Field(
+        default=60,
+        ge=1,
+        description="Timeout in seconds to wait for a sandbox to become ready (IP assigned) after creation.",
+    )
+    sandbox_create_poll_interval_seconds: float = Field(
+        default=1.0,
+        gt=0,
+        description="Polling interval in seconds when waiting for a sandbox to become ready after creation.",
+    )
+    execd_init_resources: Optional["ExecdInitResources"] = Field(
+        default=None,
+        description=(
+            "Resource requests/limits for the execd init container. "
+            "If unset, no resource constraints are applied."
+        ),
+    )
+
+
+class ExecdInitResources(BaseModel):
+    """Resource requests and limits for the execd init container."""
+
+    limits: Optional[Dict[str, str]] = Field(
+        default=None,
+        description='Resource limits, e.g. {cpu = "100m", memory = "128Mi"}.',
+    )
+    requests: Optional[Dict[str, str]] = Field(
+        default=None,
+        description='Resource requests, e.g. {cpu = "50m", memory = "64Mi"}.',
     )
 
 

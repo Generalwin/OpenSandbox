@@ -188,18 +188,8 @@ class KubernetesSandboxService(SandboxService):
                     last_state = current_state
                     last_message = current_message
                 
-                # Check if Failed
-                if current_state == "Failed":
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail={
-                            "code": SandboxErrorCodes.K8S_POD_FAILED,
-                            "message": f"Pod failed: {current_message}",
-                        },
-                    )
-                
-                # Check if Running
-                if current_state == "Running":
+                # Check if Running or Allocated (IP assigned)
+                if current_state in ("Running", "Allocated"):
                     return workload
                 
             except HTTPException:
@@ -308,8 +298,8 @@ class KubernetesSandboxService(SandboxService):
             try:
                 workload = self._wait_for_sandbox_ready(
                     sandbox_id=sandbox_id,
-                    timeout_seconds=60,
-                    poll_interval_seconds=1.0,
+                    timeout_seconds=self.app_config.kubernetes.sandbox_create_timeout_seconds,
+                    poll_interval_seconds=self.app_config.kubernetes.sandbox_create_poll_interval_seconds,
                 )
                 
                 # Get final status

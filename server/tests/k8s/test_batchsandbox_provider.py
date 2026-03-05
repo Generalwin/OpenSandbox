@@ -22,6 +22,7 @@ from unittest.mock import MagicMock
 from kubernetes.client import ApiException
 
 from src.api.schema import ImageSpec, NetworkPolicy, NetworkRule
+from src.config import ExecdInitResources
 from src.services.k8s.batchsandbox_provider import BatchSandboxProvider
 
 
@@ -108,7 +109,7 @@ class TestBatchSandboxProvider:
     
     def test_create_workload_builds_execd_init_container(self, mock_k8s_client):
         """
-        Test case: Verify execd init container built correctly
+        Test case: Verify execd init container built correctly without resources when not configured
         """
         provider = BatchSandboxProvider(mock_k8s_client)
         mock_api = mock_k8s_client.get_custom_objects_api()
@@ -136,6 +137,41 @@ class TestBatchSandboxProvider:
         assert init_container["command"] == ["/bin/sh", "-c"]
         assert "bootstrap.sh" in init_container["args"][0]
         assert init_container["volumeMounts"][0]["name"] == "opensandbox-bin"
+        # No resources configured: resources field should be absent
+        assert "resources" not in init_container
+
+    def test_create_workload_init_container_with_configured_resources(self, mock_k8s_client):
+        """
+        Test case: Verify init container applies resources when execd_init_resources is configured
+        """
+        provider = BatchSandboxProvider(
+            mock_k8s_client,
+            execd_init_resources=ExecdInitResources(
+                limits={"cpu": "100m", "memory": "128Mi"},
+                requests={"cpu": "50m", "memory": "64Mi"},
+            ),
+        )
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "test", "uid": "uid"}
+        }
+
+        provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(uri="python:3.11"),
+            entrypoint=["/bin/bash"],
+            env={},
+            resource_limits={},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:test",
+        )
+
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        init_container = body["spec"]["template"]["spec"]["initContainers"][0]
+        assert init_container["resources"]["limits"] == {"cpu": "100m", "memory": "128Mi"}
+        assert init_container["resources"]["requests"] == {"cpu": "50m", "memory": "64Mi"}
     
     def test_create_workload_wraps_entrypoint_with_bootstrap(self, mock_k8s_client):
         """
@@ -741,23 +777,28 @@ spec:
         result = provider.get_status(workload)
         
         assert result["state"] == "Running"
-        assert result["reason"] == "READY_WITH_IP"
-        assert "IP assigned" in result["message"]
+        assert result["reason"] == "POD_READY_WITH_IP"
+        assert "IP" in result["message"]
     
-    def test_get_status_pending_ready_without_ip(self):
+    def test_get_status_allocated_with_ip_not_ready(self):
         """
-        Test case: Verify status when Pod is Ready but has no IP (should be Pending)
+        Test case: Verify status when IP is assigned but Pod is not Ready (Allocated state)
         """
         provider = BatchSandboxProvider(MagicMock())
         workload = {
-            "status": {"replicas": 1, "ready": 1, "allocated": 1},
-            "metadata": {"creationTimestamp": "2025-12-24T10:00:00Z"}
+            "status": {"replicas": 1, "ready": 0, "allocated": 1},
+            "metadata": {
+                "annotations": {
+                    "sandbox.opensandbox.io/endpoints": '["10.0.0.1"]'
+                },
+                "creationTimestamp": "2025-12-24T10:00:00Z"
+            }
         }
         
         result = provider.get_status(workload)
         
-        assert result["state"] == "Pending"
-        assert result["reason"] == "POD_READY_NO_IP"
+        assert result["state"] == "Allocated"
+        assert result["reason"] == "IP_ASSIGNED"
     
     def test_get_status_pending_scheduled(self):
         """
@@ -771,6 +812,46 @@ spec:
         
         result = provider.get_status(workload)
         
+        assert result["state"] == "Pending"
+        assert result["reason"] == "POD_SCHEDULED"
+    
+    def test_get_status_pending_when_endpoints_invalid_json(self):
+        """
+        Test case: Verify Pending when endpoints annotation contains invalid JSON
+        """
+        provider = BatchSandboxProvider(MagicMock())
+        workload = {
+            "status": {"replicas": 1, "ready": 0, "allocated": 1},
+            "metadata": {
+                "annotations": {
+                    "sandbox.opensandbox.io/endpoints": "invalid-json"
+                },
+                "creationTimestamp": "2025-12-24T10:00:00Z"
+            }
+        }
+
+        result = provider.get_status(workload)
+
+        assert result["state"] == "Pending"
+        assert result["reason"] == "POD_SCHEDULED"
+
+    def test_get_status_pending_when_endpoints_empty_array(self):
+        """
+        Test case: Verify Pending when endpoints annotation is empty array
+        """
+        provider = BatchSandboxProvider(MagicMock())
+        workload = {
+            "status": {"replicas": 1, "ready": 0, "allocated": 1},
+            "metadata": {
+                "annotations": {
+                    "sandbox.opensandbox.io/endpoints": "[]"
+                },
+                "creationTimestamp": "2025-12-24T10:00:00Z"
+            }
+        }
+
+        result = provider.get_status(workload)
+
         assert result["state"] == "Pending"
         assert result["reason"] == "POD_SCHEDULED"
     
