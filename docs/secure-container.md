@@ -740,4 +740,4 @@ sudo systemctl restart containerd
 
 - **Documentation**: [OpenSandbox GitHub](https://github.com/alibaba/OpenSandbox)
 - **Issues**: Report bugs via [GitHub Issues](https://github.com/alibaba/OpenSandbox/issues)
-- **Design Document**: See [OSEP-0004](../oseps/0004-secure-container-runtime.md) for complete design details
+- **Design Document**: See [OSEP-0004](/oseps/0004-secure-container-runtime) for complete design details
