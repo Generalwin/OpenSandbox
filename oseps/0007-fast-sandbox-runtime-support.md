@@ -6,7 +6,7 @@ creation-date: 2026-02-08
 last-updated: 2026-02-08
 status: draft
 ---
-# OSEP-0005: Fast Sandbox Runtime Support
+# OSEP-0007: Fast Sandbox Runtime Support
 
 <!-- toc -->
 
