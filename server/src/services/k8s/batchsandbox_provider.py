@@ -16,8 +16,8 @@
 BatchSandbox-based workload provider implementation.
 """
 
-import json
 import logging
+import json
 import shlex
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Callable
@@ -34,6 +34,10 @@ from kubernetes.client import (
 from src.config import AppConfig, IngressConfig, INGRESS_MODE_GATEWAY, ExecdInitResources
 from src.services.helpers import format_ingress_endpoint
 from src.api.schema import Endpoint, ImageSpec, NetworkPolicy
+from src.services.k8s.image_pull_secret_helper import (
+    build_image_pull_secret,
+    build_image_pull_secret_name,
+)
 from src.services.k8s.batchsandbox_template import BatchSandboxTemplateManager
 from src.services.k8s.client import K8sClient
 from src.services.k8s.egress_helper import (
@@ -109,7 +113,11 @@ class BatchSandboxProvider(WorkloadProvider):
         )
         self._informers: Dict[str, WorkloadInformer] = {}
         self._informers_lock = Lock()
-    
+
+    def supports_image_auth(self) -> bool:
+        """BatchSandbox supports image pull auth via imagePullSecrets injection."""
+        return True
+
     def create_workload(
         self,
         sandbox_id: str,
@@ -208,6 +216,12 @@ class BatchSandboxProvider(WorkloadProvider):
         if self.runtime_class:
             pod_spec["runtimeClassName"] = self.runtime_class
 
+        # Inject imagePullSecrets if image auth is provided
+        # secret_name is deterministic so it can be embedded before the Secret is created
+        if image_spec.auth:
+            secret_name = build_image_pull_secret_name(sandbox_id)
+            pod_spec["imagePullSecrets"] = [{"name": secret_name}]
+
         # Add egress sidecar if network policy is provided
         apply_egress_to_spec(
             pod_spec=pod_spec,
@@ -247,7 +261,20 @@ class BatchSandboxProvider(WorkloadProvider):
             plural=self.plural,
             body=batchsandbox,
         )
-        
+
+        # Create imagePullSecret with ownerReference pointing to the BatchSandbox
+        if image_spec.auth:
+            secret = build_image_pull_secret(
+                sandbox_id=sandbox_id,
+                image_uri=image_spec.uri,
+                auth=image_spec.auth,
+                owner_uid=created["metadata"]["uid"],
+                owner_api_version=f"{self.group}/{self.version}",
+                owner_kind="BatchSandbox",
+            )
+            self.k8s_client.get_core_v1_api().create_namespaced_secret(namespace=namespace, body=secret)
+            logger.info("Created imagePullSecret for sandbox %s", sandbox_id)
+
         informer = self._get_informer(namespace)
         if informer:
             try:

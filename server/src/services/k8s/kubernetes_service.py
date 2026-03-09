@@ -227,24 +227,25 @@ class KubernetesSandboxService(SandboxService):
 
     def _ensure_image_auth_support(self, request: CreateSandboxRequest) -> None:
         """
-        Validate image auth support for Kubernetes runtime.
+        Validate image auth support for the current workload provider.
 
-        K8s runtime currently does not map per-request image.auth to imagePullSecrets.
+        Raises HTTP 400 if the provider does not support per-request image auth.
         """
         if request.image.auth is None:
             return
-
+        if self.workload_provider.supports_image_auth():
+            return
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": SandboxErrorCodes.INVALID_PARAMETER,
                 "message": (
-                    "image.auth is not supported in Kubernetes runtime yet. "
+                    "image.auth is not supported by the current workload provider. "
                     "Use imagePullSecrets via Kubernetes ServiceAccount or sandbox template."
                 ),
             },
         )
-    
+
     def create_sandbox(self, request: CreateSandboxRequest) -> CreateSandboxResponse:
         """
         Create a new sandbox using Kubernetes Pod.

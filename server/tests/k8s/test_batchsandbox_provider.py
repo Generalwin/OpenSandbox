@@ -21,9 +21,10 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 from kubernetes.client import ApiException
 
-from src.api.schema import ImageSpec, NetworkPolicy, NetworkRule
+from src.api.schema import ImageSpec, ImageAuth, NetworkPolicy, NetworkRule
 from src.config import ExecdInitResources
 from src.services.k8s.batchsandbox_provider import BatchSandboxProvider
+from src.services.k8s.image_pull_secret_helper import IMAGE_AUTH_SECRET_PREFIX
 
 
 class TestBatchSandboxProvider:
@@ -1600,3 +1601,104 @@ spec:
         volume_names = [v["name"] for v in pod_spec["volumes"]]
         assert "sandbox-shared-data" in volume_names
         assert "opensandbox-bin" in volume_names
+
+    # ===== Image Auth Tests =====
+
+    def test_supports_image_auth_returns_true(self, mock_k8s_client):
+        """
+        Test case: BatchSandboxProvider declares image auth support
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        assert provider.supports_image_auth() is True
+
+    def test_create_workload_with_image_auth_injects_image_pull_secrets(self, mock_k8s_client):
+        """
+        Test case: imagePullSecrets is injected into pod spec when image auth is provided
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "test-id", "uid": "uid-123"}
+        }
+
+        provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(
+                uri="registry.example.com/img:tag",
+                auth=ImageAuth(username="user", password="pass"),
+            ),
+            entrypoint=["/bin/bash"],
+            env={},
+            resource_limits={},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:latest",
+        )
+
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        pull_secrets = body["spec"]["template"]["spec"].get("imagePullSecrets")
+        assert pull_secrets == [{"name": f"{IMAGE_AUTH_SECRET_PREFIX}-test-id"}]
+
+    def test_create_workload_with_image_auth_creates_secret(self, mock_k8s_client):
+        """
+        Test case: a kubernetes.io/dockerconfigjson Secret is created with correct ownerReference
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "test-id", "uid": "uid-abc"}
+        }
+        mock_core_api = mock_k8s_client.get_core_v1_api()
+
+        provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(
+                uri="registry.example.com/img:tag",
+                auth=ImageAuth(username="user", password="pass"),
+            ),
+            entrypoint=["/bin/bash"],
+            env={},
+            resource_limits={},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:latest",
+        )
+
+        mock_core_api.create_namespaced_secret.assert_called_once()
+        call_kwargs = mock_core_api.create_namespaced_secret.call_args.kwargs
+        assert call_kwargs["namespace"] == "test-ns"
+        secret = call_kwargs["body"]
+        assert secret.type == "kubernetes.io/dockerconfigjson"
+        ref = secret.metadata.owner_references[0]
+        assert ref.uid == "uid-abc"
+        assert ref.kind == "BatchSandbox"
+        assert ref.name == "test-id"
+
+    def test_create_workload_without_image_auth_skips_secret(self, mock_k8s_client):
+        """
+        Test case: no Secret is created when image auth is absent
+        """
+        provider = BatchSandboxProvider(mock_k8s_client)
+        mock_api = mock_k8s_client.get_custom_objects_api()
+        mock_api.create_namespaced_custom_object.return_value = {
+            "metadata": {"name": "test-id", "uid": "uid-123"}
+        }
+        mock_core_api = mock_k8s_client.get_core_v1_api()
+
+        provider.create_workload(
+            sandbox_id="test-id",
+            namespace="test-ns",
+            image_spec=ImageSpec(uri="python:3.11"),
+            entrypoint=["/bin/bash"],
+            env={},
+            resource_limits={},
+            labels={},
+            expires_at=datetime(2025, 12, 31, tzinfo=timezone.utc),
+            execd_image="execd:latest",
+        )
+
+        mock_core_api.create_namespaced_secret.assert_not_called()
+        body = mock_api.create_namespaced_custom_object.call_args.kwargs["body"]
+        assert "imagePullSecrets" not in body["spec"]["template"]["spec"]

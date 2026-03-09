@@ -172,6 +172,15 @@ class WorkloadProvider(ABC):
         """
         pass
 
+    def supports_image_auth(self) -> bool:
+        """
+        Whether this provider supports per-request image pull authentication.
+
+        Providers that implement imagePullSecrets injection should override
+        this method to return True.
+        """
+        return False
+
     def legacy_resource_name(self, sandbox_id: str) -> str:
         """
         Convert a sandbox_id to the legacy resource name with prefix.
