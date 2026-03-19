@@ -152,24 +152,23 @@ func (r *PoolReconciler) reconcilePool(ctx context.Context, pool *sandboxv1alpha
 		}
 
 		// 2. Schedule and allocate
-		podAllocation, idlePods, supplySandbox, poolDirty, err := r.scheduleSandbox(ctx, latestPool, batchSandboxes, pods)
+		podAllocation, pendingSyncs, idlePods, supplySandbox, poolDirty, err := r.scheduleSandbox(ctx, latestPool, batchSandboxes, pods)
 		if err != nil {
 			return err
 		}
 
 		needReconcile := false
 		delay := time.Duration(0)
-		if supplySandbox > 0 && len(idlePods) > 0 { // Some idle pods may be pending, retry schedule later.
+		if supplySandbox > 0 && len(idlePods) > 0 {
 			needReconcile = true
 			delay = defaultRetryTime
 		}
-		if int32(len(idlePods)) >= supplySandbox { // Some pods may be pending, no need to create again.
+		if int32(len(idlePods)) >= supplySandbox {
 			supplySandbox = 0
 		} else {
 			supplySandbox -= int32(len(idlePods))
 		}
 
-		// 3. Persist allocation if needed (Update Annotations)
 		if poolDirty {
 			if err := r.Allocator.PersistPoolAllocation(ctx, latestPool, &AllocStatus{PodAllocation: podAllocation}); err != nil {
 				log.Error(err, "Failed to persist pool allocation")
@@ -177,7 +176,17 @@ func (r *PoolReconciler) reconcilePool(ctx context.Context, pool *sandboxv1alpha
 			}
 		}
 
-		// 4. Update revision and scale (Scaling involves Pod creation/deletion, not Pool CR update)
+		var syncErrs []error
+		for _, syncInfo := range pendingSyncs {
+			if err := r.Allocator.SyncSandboxAllocation(ctx, syncInfo.Sandbox, syncInfo.Pods); err != nil {
+				log.Error(err, "Failed to sync sandbox allocation", "sandbox", syncInfo.SandboxName)
+				syncErrs = append(syncErrs, fmt.Errorf("failed to sync sandbox %s: %w", syncInfo.SandboxName, err))
+			}
+		}
+		if len(syncErrs) > 0 {
+			return gerrors.Join(syncErrs...)
+		}
+
 		latestRevision, err := r.calculateRevision(latestPool)
 		if err != nil {
 			return err
@@ -197,7 +206,7 @@ func (r *PoolReconciler) reconcilePool(ctx context.Context, pool *sandboxv1alpha
 			return err
 		}
 
-		// 5. Update Status (using latestPool which has updated ResourceVersion)
+		// 6. Update Status
 		if err := r.updatePoolStatus(ctx, latestRevision, latestPool, pods, podAllocation); err != nil {
 			return err
 		}
@@ -295,15 +304,15 @@ func (r *PoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *PoolReconciler) scheduleSandbox(ctx context.Context, pool *sandboxv1alpha1.Pool, batchSandboxes []*sandboxv1alpha1.BatchSandbox, pods []*corev1.Pod) (map[string]string, []string, int32, bool, error) {
+func (r *PoolReconciler) scheduleSandbox(ctx context.Context, pool *sandboxv1alpha1.Pool, batchSandboxes []*sandboxv1alpha1.BatchSandbox, pods []*corev1.Pod) (map[string]string, []SandboxSyncInfo, []string, int32, bool, error) {
 	spec := &AllocSpec{
 		Sandboxes: batchSandboxes,
 		Pool:      pool,
 		Pods:      pods,
 	}
-	status, poolDirty, err := r.Allocator.Schedule(ctx, spec)
+	status, pendingSyncs, poolDirty, err := r.Allocator.Schedule(ctx, spec)
 	if err != nil {
-		return nil, nil, 0, false, err
+		return nil, nil, nil, 0, false, err
 	}
 	idlePods := make([]string, 0)
 	for _, pod := range pods {
@@ -311,7 +320,7 @@ func (r *PoolReconciler) scheduleSandbox(ctx context.Context, pool *sandboxv1alp
 			idlePods = append(idlePods, pod.Name)
 		}
 	}
-	return status.PodAllocation, idlePods, status.PodSupplement, poolDirty, nil
+	return status.PodAllocation, pendingSyncs, idlePods, status.PodSupplement, poolDirty, nil
 }
 
 func (r *PoolReconciler) updatePool(latestRevision string, pods []*corev1.Pod, idlePods []string) ([]string, []string, int32) {
