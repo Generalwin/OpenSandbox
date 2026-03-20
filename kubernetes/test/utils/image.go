@@ -26,8 +26,8 @@ var (
 	TaskExecutorImage = getEnv("TASK_EXECUTOR_IMG", "task-executor:dev")
 
 	// SandboxImage is the image used for sandbox containers in tests
-	// Defaults to TaskExecutorImage
-	SandboxImage = getEnv("SANDBOX_IMAGE", TaskExecutorImage)
+	// Always uses TaskExecutorImage to ensure the image is available in Kind
+	SandboxImage = TaskExecutorImage
 )
 
 func getEnv(key, defaultValue string) string {

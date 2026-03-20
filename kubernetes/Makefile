@@ -152,7 +152,7 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expect
 	CONTROLLER_IMG=$(CONTROLLER_IMG) TASK_EXECUTOR_IMG=$(TASK_EXECUTOR_IMG) \
 		KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e_task/ -v -ginkgo.v $(GINKGO_ARGS)
 	$(MAKE) cleanup-test-e2e
-	$(MAKE) test-gvisor
+	$(MAKE) test-gvisor CONTROLLER_IMG=$(CONTROLLER_IMG) TASK_EXECUTOR_IMG=$(TASK_EXECUTOR_IMG)
 	$(MAKE) cleanup-gvisor
 
 .PHONY: cleanup-test-e2e
@@ -212,9 +212,9 @@ cleanup-gvisor: ## Tear down gVisor Kind cluster
 .PHONY: install-gvisor-deps
 install-gvisor-deps:
 	@echo "Building and loading controller image into gVisor Kind cluster..."
-	@$(MAKE) docker-build-controller
+	@$(MAKE) docker-build-controller CONTROLLER_IMG=$(CONTROLLER_IMG)
 	@$(KIND) load docker-image --name $(GVISOR_KIND_CLUSTER) $(CONTROLLER_IMG)
-	@$(MAKE) install-e2e-deps
+	@$(MAKE) install-e2e-deps CONTROLLER_IMG=$(CONTROLLER_IMG)
 
 .PHONY: test-gvisor
 test-gvisor: setup-gvisor install-gvisor-deps ## Run gVisor RuntimeClass e2e tests
