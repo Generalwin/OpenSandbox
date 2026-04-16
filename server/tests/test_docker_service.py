@@ -928,6 +928,54 @@ def test_egress_sidecar_host_config_sysctls_only_when_egress_disable_ipv6(mock_d
     hc2 = mock_client.api.create_host_config.call_args.kwargs
     assert hc2["sysctls"]["net.ipv6.conf.all.disable_ipv6"] == 1
 
+
+@patch("opensandbox_server.services.docker.docker")
+def test_egress_sidecar_normalizes_windows_port_bindings(mock_docker):
+    mock_client = MagicMock()
+    mock_client.containers.list.return_value = []
+
+    def host_cfg_side_effect(**kwargs):
+        return kwargs
+
+    sidecar_container = MagicMock()
+    mock_client.api.create_host_config.side_effect = host_cfg_side_effect
+    mock_client.api.create_container.return_value = {"Id": "sidecar-id"}
+    mock_client.containers.get.return_value = sidecar_container
+    mock_docker.from_env.return_value = mock_client
+
+    cfg = _app_config()
+    cfg.docker.network_mode = "bridge"
+    cfg.egress = EgressConfig(image="egress:latest", disable_ipv6=False)
+    service = DockerSandboxService(config=cfg)
+
+    with (
+        patch.object(service, "_ensure_image_available"),
+        patch.object(service, "_docker_operation") as mock_op,
+    ):
+        mock_op.return_value.__enter__.return_value = None
+        mock_op.return_value.__exit__.return_value = None
+        service._start_egress_sidecar(
+            "sandbox-id",
+            NetworkPolicy(defaultAction="deny", egress=[]),
+            egress_token="egress-token",
+            host_execd_port=44772,
+            host_http_port=8080,
+            extra_port_bindings={
+                "3389/tcp": ("0.0.0.0", 53389),
+                "3389/udp": ("0.0.0.0", 53390),
+                "8006/tcp": ("0.0.0.0", 58006),
+            },
+        )
+
+    hc_kwargs = mock_client.api.create_host_config.call_args.kwargs
+    assert "3389" in hc_kwargs["port_bindings"]
+    assert "3389/udp" in hc_kwargs["port_bindings"]
+    assert "8006" in hc_kwargs["port_bindings"]
+    sidecar_kwargs = mock_client.api.create_container.call_args.kwargs
+    assert "3389" in sidecar_kwargs["ports"]
+    assert "3389/udp" in sidecar_kwargs["ports"]
+    assert "8006" in sidecar_kwargs["ports"]
+
 def test_expire_cleans_sidecar():
     service = DockerSandboxService(config=_app_config())
     mock_container = MagicMock()
@@ -1293,9 +1341,9 @@ async def test_create_sandbox_windows_profile_injects_runtime_defaults(mock_dock
     port_bindings = host_config_kwargs["port_bindings"]
     assert "44772" in port_bindings
     assert "8080" in port_bindings
-    assert "3389/tcp" in port_bindings
+    assert "3389" in port_bindings
     assert "3389/udp" in port_bindings
-    assert "8006/tcp" in port_bindings
+    assert "8006" in port_bindings
 
 
 @pytest.mark.asyncio

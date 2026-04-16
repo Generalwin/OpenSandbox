@@ -63,7 +63,11 @@ from opensandbox_server.api.schema import (
 )
 from opensandbox_server.config import AppConfig, get_config
 from opensandbox_server.services.docker_diagnostics import DockerDiagnosticsMixin
-from opensandbox_server.services.docker_port_allocator import allocate_port_bindings
+from opensandbox_server.services.docker_port_allocator import (
+    allocate_port_bindings,
+    normalize_container_port_spec,
+    normalize_port_bindings,
+)
 from opensandbox_server.services.docker_windows_profile import (
     apply_windows_runtime_host_config_defaults,
     fetch_execd_install_bat,
@@ -1235,7 +1239,7 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
                     port_bindings = allocate_port_bindings(exposed_ports)
                     host_execd_port = port_bindings["44772"][1]
                     host_http_port = port_bindings["8080"][1]
-                    host_config_kwargs["port_bindings"] = port_bindings
+                    host_config_kwargs["port_bindings"] = normalize_port_bindings(port_bindings)
                     labels[SANDBOX_EMBEDDING_PROXY_PORT_LABEL] = str(host_execd_port)
                     labels[SANDBOX_HTTP_PORT_LABEL] = str(host_http_port)
                 else:
@@ -2276,7 +2280,7 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
         sidecar_host_config_kwargs: dict[str, Any] = {
             "network_mode": BRIDGE_NETWORK_MODE,
             "cap_add": ["NET_ADMIN"],
-            "port_bindings": sidecar_port_bindings,
+            "port_bindings": normalize_port_bindings(sidecar_port_bindings),
         }
         if self.app_config.egress.disable_ipv6:
             # Optional: disable IPv6 in the shared namespace when egress.disable_ipv6 is set.
@@ -2301,7 +2305,7 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
                     labels=sidecar_labels,
                     environment=sidecar_env,
                     # Expose the ports that have host bindings so Docker publishes them in bridge mode.
-                    ports=list(sidecar_port_bindings.keys()),
+                    ports=[normalize_container_port_spec(p) for p in sidecar_port_bindings.keys()],
                 )
             sidecar_container_id = sidecar_resp.get("Id")
             if not sidecar_container_id:
@@ -2373,7 +2377,11 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
                 container_kwargs = {
                     "image": image_uri,
                     "command": bootstrap_command,
-                    "ports": exposed_ports,
+                    "ports": (
+                        [normalize_container_port_spec(p) for p in exposed_ports]
+                        if exposed_ports
+                        else None
+                    ),
                     "name": f"sandbox-{sandbox_id}",
                     "environment": environment,
                     "labels": labels,
