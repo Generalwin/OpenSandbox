@@ -19,11 +19,11 @@ from typing import Any, Optional
 from opensandbox_server.api.schema import Endpoint
 from opensandbox_server.services.constants import (
     SANDBOX_EGRESS_AUTH_TOKEN_METADATA_KEY,
-    SANDBOX_EXECD_AUTH_TOKEN_METADATA_KEY,
+    SANDBOX_SECURE_ACCESS_TOKEN_METADATA_KEY,
 )
 from opensandbox_server.services.endpoint_auth import (
     build_egress_auth_headers,
-    build_execd_auth_headers,
+    build_secure_access_headers,
     merge_endpoint_headers,
 )
 
@@ -32,8 +32,8 @@ def _get_egress_auth_token(workload: Any) -> Optional[str]:
     return _get_annotation(workload, SANDBOX_EGRESS_AUTH_TOKEN_METADATA_KEY)
 
 
-def _get_execd_auth_token(workload: Any) -> Optional[str]:
-    return _get_annotation(workload, SANDBOX_EXECD_AUTH_TOKEN_METADATA_KEY)
+def _get_secure_access_token(workload: Any) -> Optional[str]:
+    return _get_annotation(workload, SANDBOX_SECURE_ACCESS_TOKEN_METADATA_KEY)
 
 
 def _get_annotation(workload: Any, key: str) -> Optional[str]:
@@ -59,11 +59,11 @@ def _attach_egress_auth_headers(endpoint: Endpoint, workload: Any) -> None:
     )
 
 
-def _attach_execd_auth_headers(endpoint: Endpoint, workload: Any) -> None:
-    token = _get_execd_auth_token(workload)
+def _attach_secure_access_headers(endpoint: Endpoint, workload: Any) -> None:
+    token = _get_secure_access_token(workload)
     if not token:
         return
     endpoint.headers = merge_endpoint_headers(
         endpoint.headers,
-        build_execd_auth_headers(token),
+        build_secure_access_headers(token),
     )

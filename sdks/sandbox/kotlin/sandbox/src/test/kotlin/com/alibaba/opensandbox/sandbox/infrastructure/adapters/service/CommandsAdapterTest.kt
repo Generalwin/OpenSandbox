@@ -20,7 +20,7 @@ import com.alibaba.opensandbox.sandbox.HttpClientProvider
 import com.alibaba.opensandbox.sandbox.config.ConnectionConfig
 import com.alibaba.opensandbox.sandbox.domain.exceptions.InvalidArgumentException
 import com.alibaba.opensandbox.sandbox.domain.exceptions.SandboxApiException
-import com.alibaba.opensandbox.sandbox.domain.models.execd.EXECD_ACCESS_TOKEN_HEADER
+import com.alibaba.opensandbox.sandbox.domain.models.execd.SECURE_ACCESS_HEADER
 import com.alibaba.opensandbox.sandbox.domain.models.execd.executions.ExecutionHandlers
 import com.alibaba.opensandbox.sandbox.domain.models.execd.executions.RunCommandRequest
 import com.alibaba.opensandbox.sandbox.domain.models.execd.executions.RunInSessionRequest
@@ -152,7 +152,7 @@ class CommandsAdapterTest {
                     SandboxEndpoint(
                         "$host:$port",
                         mapOf(
-                            EXECD_ACCESS_TOKEN_HEADER to "execd-token",
+                            SECURE_ACCESS_HEADER to "secure-token",
                             "OpenSandbox-Ingress-To" to "sandbox-44772",
                         ),
                     ),
@@ -168,7 +168,7 @@ class CommandsAdapterTest {
             adapter.run(RunCommandRequest.builder().command("echo secure").build())
 
             val runRequest = mockWebServer.takeRequest()
-            assertEquals("execd-token", runRequest.getHeader(EXECD_ACCESS_TOKEN_HEADER))
+            assertEquals("secure-token", runRequest.getHeader(SECURE_ACCESS_HEADER))
             assertEquals("sandbox-44772", runRequest.getHeader("OpenSandbox-Ingress-To"))
 
             mockWebServer.enqueue(
@@ -180,7 +180,7 @@ class CommandsAdapterTest {
             adapter.createSession("/workspace")
 
             val sessionRequest = mockWebServer.takeRequest()
-            assertEquals("execd-token", sessionRequest.getHeader(EXECD_ACCESS_TOKEN_HEADER))
+            assertEquals("secure-token", sessionRequest.getHeader(SECURE_ACCESS_HEADER))
             assertEquals("sandbox-44772", sessionRequest.getHeader("OpenSandbox-Ingress-To"))
         } finally {
             endpointProvider.close()

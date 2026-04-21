@@ -34,7 +34,7 @@ import com.alibaba.opensandbox.sandbox.domain.models.sandboxes.Volume
  * @property metadata User-defined metadata.
  * @property extensions Optional extension parameters for server-side customized behaviors.
  * @property networkPolicy Optional outbound network policy.
- * @property secureAccess Whether to enable secured access for sandbox control endpoints.
+ * @property secureAccess Whether to enable secured access for sandbox endpoints.
  * @property volumes Optional volume mounts.
  */
 class PoolCreationSpec private constructor(

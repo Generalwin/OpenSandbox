@@ -138,7 +138,6 @@ class AgentSandboxProvider(WorkloadProvider):
         annotations: Optional[Dict[str, str]] = None,
         egress_auth_token: Optional[str] = None,
         egress_mode: str = EGRESS_MODE_DNS,
-        execd_auth_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create an agent-sandbox Sandbox CRD workload."""
         if self.runtime_class:
@@ -158,7 +157,6 @@ class AgentSandboxProvider(WorkloadProvider):
             egress_image=egress_image,
             egress_auth_token=egress_auth_token,
             egress_mode=egress_mode,
-            execd_auth_token=execd_auth_token,
         )
 
         if volumes:
@@ -245,7 +243,6 @@ class AgentSandboxProvider(WorkloadProvider):
         egress_image: Optional[str] = None,
         egress_auth_token: Optional[str] = None,
         egress_mode: str = EGRESS_MODE_DNS,
-        execd_auth_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Build pod spec dict for the Sandbox CRD."""
         disable_ipv6_for_egress = (
@@ -265,7 +262,6 @@ class AgentSandboxProvider(WorkloadProvider):
             resource_limits=resource_limits,
             include_execd_volume=True,
             has_network_policy=network_policy is not None,
-            execd_auth_token=execd_auth_token,
         )
         
         containers = [_container_to_dict(main_container)]

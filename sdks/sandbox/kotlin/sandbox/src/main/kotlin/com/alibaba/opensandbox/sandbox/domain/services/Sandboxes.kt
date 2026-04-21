@@ -47,7 +47,7 @@ interface Sandboxes {
      * @param resource Runtime resource limits (e.g. cpu/memory). Exact semantics are server-defined
      * @param platform Optional runtime platform constraint used for provisioning
      * @param networkPolicy Optional outbound network policy (egress)
-     * @param secureAccess Whether to enable secured access for sandbox control endpoints
+     * @param secureAccess Whether to enable secured access for sandbox endpoints
      * @param extensions Opaque extension parameters passed through to the server as-is. Prefer namespaced keys
      * @param volumes Optional list of volume mounts for persistent storage
      * @return Sandbox creation response containing the sandbox id

@@ -174,7 +174,7 @@ paths:
                     memory: "512Mi"
                   entrypoint: ["python", "/app/main.py"]
               secure-access:
-                summary: Enable secured access for sandbox control endpoints
+                summary: Enable secured access for sandbox endpoints in Kubernetes gateway mode
                 value:
                   image:
                     uri: python:3.11
@@ -1127,12 +1127,14 @@ components:
           type: boolean
           default: false
           description: |
-            Opts the sandbox into secured access for control endpoints such as execd.
-            When enabled, the server provisions access credentials and returns the
-            required request headers with endpoint responses. Clients must include
-            those endpoint headers when calling the sandbox. When omitted or false,
-            endpoints remain accessible without the additional access token for
-            backward compatibility.
+            Opts the sandbox into secured access for endpoint access.
+            This is currently supported only for Kubernetes sandboxes exposed
+            through ingress gateway mode. When enabled, the server provisions
+            access credentials and returns the required request headers with
+            endpoint responses. Clients must include those endpoint headers when
+            calling the sandbox. When omitted or false, endpoints remain
+            accessible without the additional access token for backward
+            compatibility.
 
         volumes:
           type: array
